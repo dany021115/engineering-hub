@@ -89,6 +89,19 @@ test('in round 2 a finding about one sentence takes only it out of the staged fi
   assert.equal(`${entry('p2').action} ${entry('p2').reason}`, 'dropped review')
 })
 
+test('a citation or a sentence quoted with HTML entities still names its text (design 15.8.175)', () => {
+  const { ctx, p1, review, entry } = setup()
+  stage(sb, ctx, p1.path, '# Configuration\n\nThe service reads its settings.\n\n`<database-url>` is the URL of the database.\n')
+  const escaped = { path: 'package.json', quote: '&quot;test&quot;: &quot;node --test&quot;' }
+  let r = review([finding(p1.path, [escaped])])
+  assert.equal(r.code, 1, r.output)
+  assert.deepEqual([r.json().kept, r.json().discarded], [1, 0])
+  r = review([{ ...finding(p1.path, [valid]), text: '`&lt;database-url&gt;` is the URL of the database.' }], 2)
+  assert.equal(r.code, 1, r.output)
+  assert.equal(entry('p1').action, 'create')
+  assert.equal(readFileSync(stagingFile(ctx.root, 'service', p1.path), 'utf8'), '# Configuration\n\nThe service reads its settings.\n')
+})
+
 test('a finding on a line the person wrote into a file they edited is left to them (GEN-25)', () => {
   const path = 'docs/reference/configuration.md'
   const generated = '# Configuration\n\nThe service reads `DB_URL` in `src/config.ts`.\n'

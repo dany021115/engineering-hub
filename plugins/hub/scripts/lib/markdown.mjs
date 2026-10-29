@@ -112,6 +112,11 @@ export function anchors(text) {
 
 export const isPlaceholder = s => /<[^<>]*>/.test(s) || /\$\{[^}]*\}/.test(s)
 
+// Design 15.8.175: an agent may quote `<url>` as `&lt;url&gt;`; decoded, it names the same text.
+export const unescapeHtml = s =>
+  s.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#0*39;|&apos;/g, "'").replace(/&amp;/g, '&')
+export const holdsQuote = (text, quote) => text.includes(quote) || text.includes(unescapeHtml(quote))
+
 // A code span that names a file or folder rather than a command, a package or a git ref:
 // it has a slash and is absolute, a folder (`deploy/`) or ends in a file name with an extension.
 export function isPathLike(s) {
@@ -131,12 +136,14 @@ const TABLE_RULE = /^\s*\|[-:| ]+\|\s*$/
 // when it is a one-line bullet or a table body row. Null when that unit is anything else (a
 // heading, a numbered step, a longer item or paragraph, code) or `needle` is not on exactly one line.
 export function removeText(text, needle) {
-  const want = String(needle ?? '').trim()
+  let want = String(needle ?? '').trim()
   if (!want) return null
   const lines = text.split('\n')
   const fm = splitFrontmatter(text)
   const prose = new Set(classify(fm.body, fm.offset).filter(l => l.kind === 'prose').map(l => l.n))
-  const hits = lines.flatMap((l, i) => (prose.has(i + 1) && l.includes(want) ? [i] : []))
+  const on = w => lines.flatMap((l, i) => (prose.has(i + 1) && l.includes(w) ? [i] : []))
+  let hits = on(want)
+  if (!hits.length) hits = on((want = unescapeHtml(want)))
   if (hits.length !== 1) return null
   const [i] = hits
   const line = lines[i]

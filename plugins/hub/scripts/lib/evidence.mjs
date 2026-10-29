@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import { absentInHead, showHead } from './git.mjs'
 import { nameMatcher } from './glob.mjs'
 import { buildInventory, isMarkdown, readInventory } from './inventory.mjs'
+import { holdsQuote } from './markdown.mjs'
 import { lockPath, runDir } from './paths.mjs'
 import { repoDirs } from './workspace.mjs'
 
@@ -91,7 +92,7 @@ function checkItem(env, item, kind, own) {
     }
     const text = ctx.head(at.path)
     if (text === null) return { error: `${item.path} is not in HEAD` }
-    if (!text.includes(quote)) return { error: `quote not found in HEAD:${item.path}` }
+    if (!holdsQuote(text, quote)) return { error: `quote not found in HEAD:${item.path}` }
     return { repo: at.repo, path: at.path }
   }
   if (item && typeof item.absence === 'string' && item.absence.trim()) {

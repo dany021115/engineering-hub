@@ -1,6 +1,6 @@
 {
   "name": "hub",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "description": "Generates verified skills and docs inside the project that installs it, and keeps them current as the code changes",
   "author": { "name": "engineering-hub" }
 }

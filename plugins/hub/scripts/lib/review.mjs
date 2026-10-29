@@ -6,7 +6,7 @@ import { evidenceEnv, normalize, splitRepoPath } from './evidence.mjs'
 import { absentInHead, git } from './git.mjs'
 import { readJsonl, writeJsonl } from './jsonl.mjs'
 import { readLock } from './lock.mjs'
-import { removeText } from './markdown.mjs'
+import { holdsQuote, removeText } from './markdown.mjs'
 import { RUN_DIR, runDir, stagingFile, toStagingPath } from './paths.mjs'
 import { loadPlanFile } from './plan.mjs'
 import { resolveRoot } from './workspace.mjs'
@@ -27,7 +27,7 @@ function citationHolds(env, repo, evidence) {
       const quote = normalize(item.quote)
       if (!ctx || quote.length < limits.quoteMinChars || quote.length > limits.quoteMaxChars) return false
       const text = ctx.head(at.path)
-      return text !== null && text.includes(quote)
+      return text !== null && holdsQuote(text, quote)
     }
     if (item && typeof item.absence === 'string' && item.absence.trim()) {
       const at = item.pathspec ? splitRepoPath(env, item.pathspec, repo) : { repo }
@@ -94,7 +94,7 @@ export default function review(argv) {
     const text = typeof f.text === 'string' ? f.text.trim() : ''
     if (!edited || !text || !env.repo(repo)) return false
     if (!own.has(f.file)) own.set(f.file, personLines(env.repo(repo).dir, f.file))
-    return own.get(f.file).some(l => l.includes(text))
+    return own.get(f.file).some(l => holdsQuote(l, text))
   }
   for (const f of items) {
     if (NEED_QUOTE.includes(f.problem) && !citationHolds(env, repo, f.evidence)) discarded.push(f)

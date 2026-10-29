@@ -56,6 +56,14 @@ describe('facts: quotes in HEAD (GEN-9)', () => {
     assert.deepEqual(ids(w.root, 'service'), ['F1'])
   })
 
+  test('a quote written with HTML entities is found in HEAD (design 15.8.175)', () => {
+    const w = prepared()
+    writeFacts(w.root, 'service', [fact('F1', 'command', [{ path: 'package.json', quote: '&quot;test&quot;: &quot;node --test&quot;' }])])
+    const r = sb.hub(['facts', '--repo', 'service', '--json'], { cwd: w.root })
+    assert.equal(r.code, 0, r.output)
+    assert.deepEqual(ids(w.root, 'service'), ['F1'])
+  })
+
   test('the docs folder and the lock are rejected as evidence; a location may cite README.md', () => {
     const w = prepared({
       extra: {
