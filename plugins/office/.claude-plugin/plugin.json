@@ -1,0 +1,22 @@
+{
+  "name": "office",
+  "version": "0.17.1",
+  "description": "An office of subagents that share a board, ask each other questions and delegate, briefed on the workspace's repos, docs and skills",
+  "author": {
+    "name": "engineering-hub"
+  },
+  "types": "./types/index.d.ts",
+  "userConfig": {
+    "workspaceRoot": {
+      "type": "directory",
+      "title": "Workspace folder",
+      "description": "The folder that holds the repos side by side. Leave empty to find it from the session."
+    },
+    "neverIsolate": {
+      "type": "string",
+      "multiple": true,
+      "title": "Repos never isolated",
+      "description": "Repo folders where hired agents always work in the real checkout."
+    }
+  }
+}

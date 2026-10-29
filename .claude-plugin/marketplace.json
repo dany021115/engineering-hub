@@ -1,0 +1,17 @@
+{
+  "name": "engineering-hub",
+  "description": "A generator that writes verified skills and docs inside your project, and an optional office of agents",
+  "owner": { "name": "engineering-hub" },
+  "plugins": [
+    {
+      "name": "hub",
+      "source": "./plugins/hub",
+      "description": "Writes verified skills and Markdown docs into the project and keeps them current"
+    },
+    {
+      "name": "office",
+      "source": "./plugins/office",
+      "description": "An office of subagents that share a board, briefed on the workspace's repos, docs and skills"
+    }
+  ]
+}

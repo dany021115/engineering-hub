@@ -1,0 +1,33 @@
+{
+  "name": "docs-site",
+  "private": true,
+  "scripts": {
+    "start": "docusaurus start",
+    "build": "docusaurus build",
+    "serve": "docusaurus serve",
+    "clear": "docusaurus clear",
+    "check:diagrams": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/check-diagrams.mjs"
+  },
+  "dependencies": {
+    "@docusaurus/core": "3.10.2",
+    "@docusaurus/faster": "3.10.2",
+    "@docusaurus/preset-classic": "3.10.2",
+    "@docusaurus/theme-mermaid": "3.10.2",
+    "@easyops-cn/docusaurus-search-local": "0.55.3",
+    "@mdx-js/react": "^3.0.0",
+    "clsx": "^2.0.0",
+    "prism-react-renderer": "^2.3.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "^28.1.0"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "allowScripts": {
+    "@swc/core": false,
+    "core-js": false
+  }
+}

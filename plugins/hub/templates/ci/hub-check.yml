@@ -1,0 +1,39 @@
+name: hub-check
+
+# Checks the skills and docs that engineering-hub generated in this repository. The check blocks a
+# pull request; drift only warns. It runs the hub version the lock was generated with.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  hub-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Get the hub version of the lock
+        env:
+          HUB_TEMPLATE_TOKEN: ${{ secrets.HUB_TEMPLATE_TOKEN }}
+        run: |
+          version="$(node -p "require('./.claude/hub.lock.json').generator.replace(/^hub@/, '')")"
+          args=(clone --quiet --depth 1 --branch "hub--v$version")
+          # A private template is read with a fine-grained, read-only token on its repository.
+          if [ -n "$HUB_TEMPLATE_TOKEN" ]; then
+            auth="$(printf 'x-access-token:%s' "$HUB_TEMPLATE_TOKEN" | base64 -w0)"
+            echo "::add-mask::$auth"
+            args=(-c "http.extraheader=Authorization: Basic $auth" "${args[@]}")
+          fi
+          git "${args[@]}" "__HUB_TEMPLATE_URL__" "$RUNNER_TEMP/engineering-hub"
+      - name: Check the generated files
+        run: node "$RUNNER_TEMP/engineering-hub/plugins/hub/scripts/hub.mjs" check --lock .claude/hub.lock.json
+      - name: Report drift
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: node "$RUNNER_TEMP/engineering-hub/plugins/hub/scripts/hub.mjs" drift --repo . --since "$BASE" --annotate

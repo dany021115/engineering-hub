@@ -1,0 +1,105 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+env:
+  CLAUDE_CODE_VERSION: 2.1.312
+
+jobs:
+  plugins:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s "$CLAUDE_CODE_VERSION"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: claude --version
+      - name: Validate
+        run: |
+          for target in . plugins/hub plugins/office .claude/skills; do
+            claude plugin validate "$target" --strict
+          done
+      - name: Test the office
+        run: claude plugin test plugins/office
+
+  hub:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - run: node --test plugins/hub/tests
+      - run: node plugins/hub/scripts/hub.mjs check --skills plugins/hub/skills .claude/skills --authoring
+
+  site:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    defaults:
+      run:
+        working-directory: plugins/hub/templates/site
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      # Each fixture builds with the template's default site.json; DOCS_DIR wins over its docsDir.
+      - name: Check and build the four fixtures
+        run: |
+          for fixture in ../../tests/fixtures/site/*/; do
+            echo "::group::$fixture"
+            DOCS_DIR="$fixture" npm run check:diagrams
+            DOCS_DIR="$fixture" npm run build
+            echo "::endgroup::"
+          done
+
+  traces:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: No project content at the root
+        run: |
+          for path in docs .claude/hub.lock.json; do
+            if [ -e "$path" ]; then
+              echo "::error::$path must not exist in the template"
+              exit 1
+            fi
+          done
+      - name: Scan for traces
+        env:
+          TRACE_TERMS: ${{ secrets.TRACE_TERMS }}
+          FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          args=(scan . --authors .)
+          # Forks get no secrets: they skip only the terms.
+          if [ "$FORK" != true ]; then
+            if [ -z "$TRACE_TERMS" ]; then
+              echo "::error::the TRACE_TERMS secret is not set"
+              exit 1
+            fi
+            # Outside the checkout, or `scan .` would read it.
+            terms="$RUNNER_TEMP/terms.txt"
+            trap 'rm -f "$terms"' EXIT
+            printf '%s\n' "$TRACE_TERMS" > "$terms"
+            args+=(--terms "$terms")
+          fi
+          node plugins/hub/scripts/hub.mjs "${args[@]}"

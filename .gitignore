@@ -1,0 +1,8 @@
+.DS_Store
+.idea/
+.sdd/
+node_modules/
+build/
+.docusaurus/
+**/.claude-plugin/types/
+.hub-run/

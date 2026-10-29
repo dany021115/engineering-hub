@@ -1,0 +1,23 @@
+/* A neutral palette; a project changes these two blocks to its own colors. */
+:root {
+  --ifm-color-primary: #3b5bdb;
+  --ifm-color-primary-dark: #3552c5;
+  --ifm-color-primary-darker: #324dba;
+  --ifm-color-primary-darkest: #293f99;
+  --ifm-color-primary-light: #5470df;
+  --ifm-color-primary-lighter: #6179e1;
+  --ifm-color-primary-lightest: #8396e8;
+  --ifm-code-font-size: 95%;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.1);
+}
+
+[data-theme='dark'] {
+  --ifm-color-primary: #91a7ff;
+  --ifm-color-primary-dark: #7092ff;
+  --ifm-color-primary-darker: #5f85ff;
+  --ifm-color-primary-darkest: #2e5fff;
+  --ifm-color-primary-light: #b2bcff;
+  --ifm-color-primary-lighter: #c3c9ff;
+  --ifm-color-primary-lightest: #f4f5ff;
+  --docusaurus-highlighted-code-line-bg: rgba(0, 0, 0, 0.3);
+}

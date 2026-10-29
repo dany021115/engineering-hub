@@ -1,0 +1,346 @@
+{
+  "schema": 1,
+  "caps": {
+    "skillsPerRepo": 3,
+    "proceduresPerRepo": 2,
+    "agentsAtOnce": 4,
+    "factsPerRepo": 150,
+    "confirmAboveRuns": 12
+  },
+  "limits": {
+    "maxRepos": 30,
+    "quoteMinChars": 8,
+    "quoteMaxChars": 300,
+    "verifierBatchSize": 25,
+    "skillNameMaxChars": 64,
+    "descriptionMaxChars": 1024,
+    "descriptionWarnChars": 500,
+    "descriptionWithWhenToUseMaxChars": 1536,
+    "skillBodyMaxLines": 500
+  },
+  "skills": {
+    "working-in": {
+      "name": "working-in-{repo}",
+      "skeleton": "skeletons/skill-working-in.md",
+      "priority": 1,
+      "maxLines": 120,
+      "minFacts": 2,
+      "required": ["## Verify like CI", "## Hand-off"]
+    },
+    "guardrail": {
+      "name": "{repo}-{area}-guardrails",
+      "skeleton": "skeletons/skill-guardrails.md",
+      "priority": 2,
+      "maxLines": 80,
+      "minFacts": 1,
+      "required": ["## Rules", "## Safe path"]
+    },
+    "procedure": {
+      "name": "{repo}-{verb}-{object}",
+      "skeleton": "skeletons/skill-procedure.md",
+      "priority": 3,
+      "maxLines": 100,
+      "minFacts": 2,
+      "required": ["## Steps", "## Verify"]
+    },
+    "style": {
+      "name": "{repo}-{language}-style",
+      "skeleton": "skeletons/skill-style.md",
+      "priority": 4,
+      "maxLines": 80,
+      "minFacts": 3,
+      "required": ["## Conventions"],
+      "excludeConfigOnlyConventions": true
+    }
+  },
+  "pages": {
+    "index": {
+      "path": "index.md",
+      "type": "overview",
+      "when": ["always"],
+      "maxWords": 800,
+      "maxSteps": null,
+      "required": ["## Where to start"]
+    },
+    "architecture": {
+      "path": "architecture.md",
+      "type": "explanation",
+      "when": ["runtime-components", "cross-module-flow"],
+      "maxWords": 2500,
+      "maxSteps": null,
+      "required": []
+    },
+    "run-locally": {
+      "path": "how-to/run-locally.md",
+      "type": "how-to",
+      "when": ["runnable-entry-point"],
+      "maxWords": 1200,
+      "maxSteps": 10,
+      "required": ["## Before you begin", "## Steps", "## Verify"]
+    },
+    "run-tests": {
+      "path": "how-to/run-tests.md",
+      "type": "how-to",
+      "when": ["tests-need-setup"],
+      "maxWords": 1200,
+      "maxSteps": 10,
+      "required": ["## Before you begin", "## Steps", "## Verify"]
+    },
+    "release": {
+      "path": "how-to/release.md",
+      "type": "how-to",
+      "when": ["ci-publishes", "release-tooling"],
+      "maxWords": 1200,
+      "maxSteps": 10,
+      "required": ["## Before you begin", "## Steps", "## Verify"]
+    },
+    "how-to": {
+      "path": "how-to/{verb-object}.md",
+      "max": 2,
+      "type": "how-to",
+      "when": ["recurring-change"],
+      "maxWords": 1200,
+      "maxSteps": 10,
+      "required": ["## Before you begin", "## Steps", "## Verify"]
+    },
+    "configuration": {
+      "path": "reference/configuration.md",
+      "type": "reference",
+      "when": ["reads-env-vars", "reads-config-keys"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "api": {
+      "path": "reference/api.md",
+      "type": "reference",
+      "when": ["serves-api"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "cli": {
+      "path": "reference/cli.md",
+      "type": "reference",
+      "when": ["defines-cli"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "data-model": {
+      "path": "reference/data-model.md",
+      "type": "reference",
+      "when": ["owns-schema"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "events": {
+      "path": "reference/events.md",
+      "type": "reference",
+      "when": ["uses-messaging"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "explanation": {
+      "path": "explanation/{topic}.md",
+      "max": 2,
+      "type": "explanation",
+      "when": ["non-obvious-mechanism"],
+      "maxWords": 2500,
+      "maxSteps": null,
+      "required": []
+    },
+    "workspace-index": {
+      "path": "workspace/index.md",
+      "workspace": true,
+      "type": "overview",
+      "when": ["docs-home"],
+      "maxWords": 800,
+      "maxSteps": null,
+      "required": ["## Where to start"]
+    },
+    "workspace-architecture": {
+      "path": "workspace/architecture.md",
+      "workspace": true,
+      "type": "explanation",
+      "when": ["repos-interact"],
+      "maxWords": 2500,
+      "maxSteps": null,
+      "required": []
+    },
+    "workspace-interfaces": {
+      "path": "workspace/interfaces.md",
+      "workspace": true,
+      "type": "reference",
+      "when": ["two-sided-seam"],
+      "maxWords": null,
+      "maxSteps": null,
+      "required": []
+    },
+    "workspace-flow": {
+      "path": "workspace/flows/{flow}.md",
+      "max": 2,
+      "workspace": true,
+      "type": "explanation",
+      "when": ["cross-repo-flow"],
+      "maxWords": 2500,
+      "maxSteps": null,
+      "required": []
+    }
+  },
+  "frontmatterKeys": {
+    "generated": {
+      "name": "string",
+      "description": "string",
+      "paths": "string-or-list"
+    },
+    "authoring": {
+      "name": "string",
+      "description": "string",
+      "paths": "string-or-list",
+      "disable-model-invocation": "boolean",
+      "argument-hint": "string",
+      "allowed-tools": "string-or-list",
+      "when_to_use": "string"
+    },
+    "forbiddenInGenerated": ["allowed-tools", "hooks", "context", "agent", "model"]
+  },
+  "bundledSkillNames": ["init", "verify", "debug", "simplify", "code-review", "doctor", "run"],
+  "timelessWords": ["currently", "now", "new", "soon", "as of"],
+  "placeholderWords": ["TODO", "TBD"],
+  "groundingAllow": ["git", "npm", "npx", "node", "make", "docker"],
+  "configFiles": [
+    ".editorconfig",
+    ".eslintrc",
+    ".eslintrc.*",
+    "eslint.config.*",
+    ".prettierrc",
+    ".prettierrc.*",
+    "prettier.config.*",
+    "biome.json",
+    "biome.jsonc",
+    ".stylelintrc",
+    ".stylelintrc.*",
+    "stylelint.config.*",
+    "tsconfig.json",
+    "tsconfig.*.json",
+    "deno.json",
+    "deno.jsonc",
+    ".rubocop.yml",
+    "rustfmt.toml",
+    ".rustfmt.toml",
+    "clippy.toml",
+    ".golangci.yml",
+    ".golangci.yaml",
+    ".flake8",
+    ".pylintrc",
+    "ruff.toml",
+    ".ruff.toml",
+    "mypy.ini",
+    ".isort.cfg",
+    ".clang-format",
+    ".clang-tidy",
+    ".swiftlint.yml",
+    ".swift-format",
+    "checkstyle*.xml",
+    ".scalafmt.conf",
+    ".credo.exs",
+    ".formatter.exs",
+    ".php-cs-fixer.php",
+    ".php-cs-fixer.dist.php",
+    "phpcs.xml",
+    "phpcs.xml.dist",
+    ".markdownlint.json",
+    ".markdownlint.yaml",
+    ".markdownlint.yml",
+    ".markdownlint.jsonc",
+    ".vale.ini",
+    ".yamllint",
+    ".yamllint.yml",
+    ".yamllint.yaml"
+  ],
+  "sensitiveFiles": [
+    ".env",
+    ".env.*",
+    "*.env",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "*.jks",
+    "*.keystore",
+    "id_rsa*",
+    "id_dsa*",
+    "id_ecdsa*",
+    "id_ed25519*",
+    "credentials",
+    "credentials.*",
+    "secrets.*",
+    ".npmrc",
+    ".pypirc",
+    ".netrc",
+    "*.tfvars",
+    "*.tfstate",
+    "*.tfstate.*"
+  ],
+  "secretPatterns": [
+    { "name": "private key", "regex": "-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY( BLOCK)?-----" },
+    { "name": "AWS access key", "regex": "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b" },
+    { "name": "GitHub token", "regex": "\\bgh[pousr]_[A-Za-z0-9]{36,}\\b" },
+    { "name": "GitHub fine-grained token", "regex": "\\bgithub_pat_[A-Za-z0-9_]{22,}\\b" },
+    { "name": "GitLab token", "regex": "\\bglpat-[A-Za-z0-9_-]{20,}\\b" },
+    { "name": "Slack token", "regex": "\\bxox[abposr]-[A-Za-z0-9-]{10,}\\b" },
+    { "name": "Google API key", "regex": "\\bAIza[0-9A-Za-z_-]{35}\\b" },
+    { "name": "Stripe secret key", "regex": "\\b[rs]k_live_[0-9A-Za-z]{16,}\\b" },
+    { "name": "npm token", "regex": "\\bnpm_[A-Za-z0-9]{36}\\b" },
+    { "name": "Anthropic API key", "regex": "\\bsk-ant-[A-Za-z0-9_-]{20,}" },
+    { "name": "OpenAI API key", "regex": "\\bsk-(?:proj-)?[A-Za-z0-9_-]{32,}\\b" },
+    { "name": "JWT", "regex": "\\beyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}" },
+    { "name": "URL with credentials", "regex": "\\b[a-z][a-z0-9+.-]*://[^/\\s:@<>\"'`]+:[^/\\s@<>\"'`]+@[^\\s/]+", "flags": "i" },
+    {
+      "name": "secret assignment",
+      "regex": "(?<![\\w-])(?:password|passwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret)[\"']?\\s*[:=]\\s*[\"'][^\"'\\s<>${}]{4,}[\"']",
+      "flags": "i"
+    },
+    {
+      "name": "secret assignment",
+      "regex": "^\\s*(?:export\\s+)?[A-Z0-9_]*(?:PASSWORD|PASSWD|SECRET|API_KEY|TOKEN)[A-Z0-9_]*\\s*=\\s*[^\\s\"'$<{]{4,}\\s*$",
+      "flags": "m"
+    }
+  ],
+  "factKinds": [
+    "command",
+    "config",
+    "interface",
+    "flow",
+    "architecture",
+    "convention",
+    "gotcha",
+    "seam",
+    "location",
+    "negative",
+    "rationale",
+    "human"
+  ],
+  "verifiedKinds": ["command", "convention", "seam", "interface", "config", "gotcha", "rationale"],
+  "rejectReasons": [
+    "inferable",
+    "restates-instructions",
+    "duplicates-existing-doc",
+    "no-evidence",
+    "rots",
+    "hook-shaped",
+    "over-cap"
+  ],
+  "offers": {
+    "instructions-line": { "paths": ["CLAUDE.md", "AGENTS.md"] },
+    "team-settings": { "paths": [".claude/settings.json"], "needsGitSource": true },
+    "guardrail-deny": { "paths": [".claude/settings.json"] },
+    "hub-check": { "paths": [".github/workflows/hub-check.yml"], "needsGitSource": true },
+    "docs-site": { "paths": [".github/workflows/docs-site.yml"] }
+  },
+  "instructionFiles": ["CLAUDE.md", "AGENTS.md"],
+  "settingsFile": ".claude/settings.json"
+}
