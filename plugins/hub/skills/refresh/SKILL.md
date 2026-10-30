@@ -69,8 +69,9 @@ the folder to start Claude Code in) and stop. Otherwise read `mode`, `root`, `re
   `finish --keep none`, run
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep none --json`. Then
   run `start --json` again and go on as a new run. Resume: `verify` goes to step 3, `P2` runs the
-  `plan` call on the existing plan for its `evidence` and goes to the P2 gate, and `P3` to the P3
-  gate, with the scope from `.hub-run/scope.json` or the plan.
+  `plan` call on the existing plan for its `evidence` and goes to the P2 gate, and `P3` runs the
+  `sample` call of step 8, which gives the same sentences again, and goes to the P3 gate, with the
+  scope from `.hub-run/scope.json` or the plan.
 
 ## 1. Prepare the run and find the drift
 
@@ -218,6 +219,11 @@ is true, build the site with the refreshed pages:
 each broken link or diagram by file and line and each broken anchor by its page; exit 2 means
 `npm ci` failed. Without a hub site, never run `--build`: nothing here calls npm.
 
+**A sample to check.** Last, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs sample .hub-run/plan.json --json`.
+It only reads, gives the same sentences each time in this run, and takes them only from the lines
+this run changed. Its `items` each have a number `n`, a `repo`, `path` and `line`, a `text` and the
+`open` paths to read it against.
+
 ## P3. Result
 
 For each repository run `git -C <repo> status --short` and `git -C <repo> diff --stat`, each alone.
@@ -230,23 +236,35 @@ that accepting one replaces the file edited by hand and tracks it again, and lea
 file the person's (it leaves the lock). If no site exists yet, say in one line that `/hub:site`
 builds one from these docs.
 
+**The sampled sentences,** when `sample` gave any: list them numbered, each with its repository,
+`path:line`, the sentence and its `open` paths, in the text before the call and again in the text
+of their question. Say that a sentence that does not match is left out with "Keep without some" and
+its file's id, or fixed by hand afterwards, and that editing it protects that file at the next
+refresh. With no sentence there is no such question.
+
 Then one AskUserQuestion:
 
 1. **Proposals to apply** (multiple choice), default none. Up to 4, one option each, labelled with
    id and destination; with more, list them in the question text and group the options.
-2. **Keep:** "Keep all (default)", "Keep without some" (ids in "Other") or "Discard all". When the
+2. **Did these sentences match the code?** (only with sampled sentences): "Not checked (default)",
+   "All matched" or "Some did not (numbers in Other)". "Some did not" without numbers is an answer
+   too: do not ask again.
+3. **Keep:** "Keep all (default)", "Keep without some" (ids in "Other") or "Discard all". When the
    site build failed, leave out "Keep all": offer "Keep without some (default)" and "Discard all",
    and say which pages break the build; `finish` itself does not check it.
 
 ## 9. Finish
 
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep <keep> --apply <ids> --json`
-(`--apply` only when a proposal was chosen). It applies the chosen proposals unless their file
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep <keep> --apply <ids> --spot <spot> --json`
+(`--apply` only when a proposal was chosen; `--spot` only when the sentences were asked about:
+`none` for "Not checked", `all` for "All matched", `some` for "Some did not" without numbers, or the
+numbers written in "Other", separated by commas). It applies the chosen proposals unless their file
 changed since `place`, takes the rejected ones and the confirmed disappearances out of the lock,
 and moves `documentedCommit` to `HEAD` only when every affected file was refreshed, accepted or let
 go; its warnings name the ones that hold it back. Exit 1 still finishes the run.
 
 Report from its output what was written and what was not, files left as they are, proposals not
-applied with the reason, whether `documentedCommit` moved, and the suggested commit message.
+applied with the reason, the spot check, whether `documentedCommit` moved, and the suggested commit
+message.
 Reviewing and committing is up to the person, on a working branch of their choice. Do not commit
 or push.

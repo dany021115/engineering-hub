@@ -74,7 +74,8 @@ against `HEAD`).
   again and go on as a new run.
 - Resume: `verify` goes to step 3 for the repositories with a `facts/<repo>.jsonl` (no explorer
   runs again), `P2` runs the `plan` call of step 5 on the existing `.hub-run/plan.json` for its
-  `evidence` and goes to the P2 gate, and `P3` goes to the P3 gate. Take the language and docs
+  `evidence` and goes to the P2 gate, and `P3` runs the `sample` call of step 8, which gives the
+  same sentences again, and goes to the P3 gate. Take the language and docs
   home from `.hub-run/scope.json` or the plan.
 
 ## 1. Prepare the run
@@ -263,6 +264,11 @@ is true, build the site with the placed pages:
 each broken link or diagram by file and line and each broken anchor by its page; exit 2 means
 `npm ci` failed. Without a hub site, never run `--build`: nothing here calls npm.
 
+**A sample to check.** Last, run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs sample .hub-run/plan.json --json`.
+It only reads, and gives the same sentences each time in this run. Its `items` are a few placed
+sentences, each with its number `n`, its `repo`, `path` and `line`, its `text` and the `open` paths
+to read it against.
+
 ## P3. Result
 
 For each repository run `git -C <repo> status --short` and `git -C <repo> diff --stat`, each alone
@@ -284,28 +290,40 @@ About the offers, say:
 - Without a hub site, the Keep question's text ends with one line: `/hub:site` can build a docs
   site from these docs.
 
+**The sampled sentences,** when `sample` gave any: list them numbered, each with its repository,
+`path:line`, the sentence and its `open` paths, in the text before the call and again in the text
+of their question. Say that a sentence that does not match is left out with "Keep without some" and
+its file's id, or fixed by hand afterwards, and that editing it protects that file at the next
+refresh. With no sentence there is no such question.
+
 Then one AskUserQuestion:
 
 1. **Proposals and offers to apply** (multiple choice), default none. Up to 4, one option each,
    labelled with id and destination. With more than 4, list them all in the question text with id
    and destination, and offer all, none, or groups by kind; other selections go in "Other" as ids.
    What is not chosen changes nothing.
-2. **Keep:** "Keep all (default)", "Keep without some" (write in "Other" the ids to leave out) or
+2. **Did these sentences match the code?** (only with sampled sentences): "Not checked (default)",
+   "All matched" or "Some did not (numbers in Other)". "Some did not" without numbers is an answer
+   too: do not ask again.
+3. **Keep:** "Keep all (default)", "Keep without some" (write in "Other" the ids to leave out) or
    "Discard all". If they pick "Keep without some" without ids, ask which. When the site build
    failed, leave out "Keep all": offer "Keep without some (default)" and "Discard all", and say
    which pages break the build; `finish` itself does not check it.
 
 ## 9. Finish
 
-Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep <keep> --apply <ids> --json`,
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep <keep> --apply <ids> --spot <spot> --json`,
 where `<keep>` is `all`, `none`, or for "Keep without some" the kept entry ids separated by
-commas, and `<ids>` the chosen proposals and offers, separated by commas. Pass `--apply` only when a
-proposal or offer was chosen. It removes or restores what was discarded, never touches a file
-changed since `place`, applies the chosen proposals after scanning them, writes the locks and
-checks confinement. Exit 1 still finishes the run.
+commas; `<ids>` the chosen proposals and offers, separated by commas; and `<spot>` the answer about
+the sentences: `none` for "Not checked", `all` for "All matched", `some` for "Some did not" without
+numbers, or the numbers written in "Other", separated by commas. Pass `--apply` only when a
+proposal or offer was chosen, and `--spot` only when the sentences were asked about. It removes or
+restores what was discarded, never touches a file changed since `place`, applies the chosen
+proposals after scanning them, writes the locks and checks confinement. Exit 1 still finishes the
+run.
 
 Report from its output: what was written and what was not, files left as they are because they
-changed after `place`, proposals not applied with the reason, unexpected paths, the locks written,
-and the suggested commit message in the repository's style. Say that the new skills are active
+changed after `place`, proposals not applied with the reason, unexpected paths, the spot check, the
+locks written, and the suggested commit message in the repository's style. Say that the new skills are active
 already, before anything is recorded in git, and that reviewing and committing is up to the person
 (on a working branch of their choice). Do not commit or push.
