@@ -85,12 +85,17 @@ test('grid splits move in steps and stay within bounds', () => {
 })
 
 test('discovery and the briefing build the workspace context', async () => {
-  const tree = fakeTree({ ...repoFiles('/w/service'), '/w/service/docs/index.md': '# Service\n\nThe backend. It runs.' })
+  const tree = fakeTree({
+    ...repoFiles('/w/service'),
+    '/w/service/docs/index.md': '# Service\n\nThe backend. It runs.',
+  })
   const workspace = await discover(
     { options: { workspaceRoot: '/w', neverIsolate: ['infra'] }, repoRoot: null, sessionRoot: '/w' },
     tree.reader,
   )
-  expect(workspace.repos).toEqual([{ name: 'service', path: '/w/service', docsDir: 'docs', neverIsolate: false }])
+  expect(workspace.repos).toEqual([
+    { name: 'service', path: '/w/service', docsDir: 'docs', neverIsolate: false },
+  ])
   const briefing = await workspaceBriefing(workspace, tree.reader)
   expect(briefing).toContain('# Workspace\nRoot: /w')
   expect(briefing).toContain('- service (/w/service): The backend.')

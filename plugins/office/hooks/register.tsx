@@ -302,12 +302,10 @@ async function hireFromPane($: EngineInterface, task: string) {
   await $.ui.toast(await hire($, task, undefined, undefined, isolate))
 }
 
-
 async function forgetWorktree($: EngineInterface, agentId: string, worktree: Worktree) {
   await runGit($, git.remove(worktree.repoRoot, worktree.path))
   await update($, worktrees, ({ [agentId]: _gone, ...rest }) => rest)
 }
-
 
 async function applyWorktree($: EngineInterface, worker: Worker, worktree: Worktree) {
   const { ok, message } = await applyChanges(gitOf($), worktree)

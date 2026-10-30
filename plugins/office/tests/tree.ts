@@ -30,7 +30,10 @@ export function fakeTree(files: Files) {
   }
   const reader: Reader = {
     dirOf: async path => (isDir(path) ? path : undefined),
-    listDirs: async dir => children(dir).filter(one => one.kind === 'dir').map(one => one.name),
+    listDirs: async dir =>
+      children(dir)
+        .filter(one => one.kind === 'dir')
+        .map(one => one.name),
     exists: async path => isFile(path) || isDir(path),
     read: async path => read(path),
   }
@@ -66,7 +69,9 @@ export function serveTree(on: On, files: Files, session: Session) {
     return { value: { kind, size: 0, mtimeMs: 0, isLink: false, realPath: e.resolve ? e.path : undefined } }
   })
   on('fs.list', (_$, e) => ({
-    value: tree.children(e.path).map(({ name, kind }) => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })),
+    value: tree
+      .children(e.path)
+      .map(({ name, kind }) => ({ name, kind, size: 0, mtimeMs: 0, isLink: false })),
   }))
   on('fs.exists', (_$, e) => ({ value: tree.isFile(e.path) || tree.isDir(e.path) }))
   on('fs.read', (_$, e) => ({ value: tree.read(e.path) }))

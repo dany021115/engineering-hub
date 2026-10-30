@@ -99,7 +99,12 @@ type Found = { root: string; base: string; names: string[]; warnings: string[] }
 
 async function fromRepo(reader: Reader, top: string): Promise<Found> {
   // A lone repo is its own root: nothing above it is assumed to be a workspace.
-  const alone = (warnings: string[] = []) => ({ root: top, base: parentOf(top), names: [basename(top)], warnings })
+  const alone = (warnings: string[] = []) => ({
+    root: top,
+    base: parentOf(top),
+    names: [basename(top)],
+    warnings,
+  })
   const among = async (names: string[]) => {
     const base = parentOf(top)
     return { root: base, base, names: await existing(reader, base, names), warnings: [] }
@@ -166,7 +171,12 @@ export async function discover(input: DiscoverInput, source: Reader): Promise<Wo
     const { lock, warning } = await readLock(reader, path)
     if (warning && !warnings.includes(warning)) warnings.push(warning)
     if (lock?.workspace) homes.push(name)
-    repos.push({ name, path, docsDir: lock?.docsDir ?? DEFAULT_DOCS, neverIsolate: neverIsolated.includes(name) })
+    repos.push({
+      name,
+      path,
+      docsDir: lock?.docsDir ?? DEFAULT_DOCS,
+      neverIsolate: neverIsolated.includes(name),
+    })
   }
   if (homes.length > 1) {
     warnings.push(`Several repos list the workspace (${homes.join(', ')}): the office uses ${homes[0]}.`)

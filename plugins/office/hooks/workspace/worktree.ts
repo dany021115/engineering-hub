@@ -34,7 +34,10 @@ export type ProcessRun = (
   stdin?: string,
 ) => Promise<{ exitCode: number; stdout: string; stderr: string }>
 
-export type GitRun = (argv: string[], stdin?: string) => Promise<{ ok: boolean; stdout: string; stderr: string }>
+export type GitRun = (
+  argv: string[],
+  stdin?: string,
+) => Promise<{ ok: boolean; stdout: string; stderr: string }>
 
 // stdout comes back as git wrote it: a patch must reach git apply byte for byte.
 export const gitRunner =

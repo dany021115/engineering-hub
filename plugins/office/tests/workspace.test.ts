@@ -30,8 +30,16 @@ const LOCK = '.claude/hub.lock.json'
 const HOME_LOCK = { [`/w/service/${LOCK}`]: lockOf({ workspace: { repos: ['service', 'web', 'infra'] } }) }
 
 const NO_OPTIONS = { workspaceRoot: '', neverIsolate: '' }
-const inGit = (repoRoot: string, options = NO_OPTIONS): DiscoverInput => ({ options, repoRoot, sessionRoot: repoRoot })
-const outsideGit = (sessionRoot: string, options = NO_OPTIONS): DiscoverInput => ({ options, repoRoot: null, sessionRoot })
+const inGit = (repoRoot: string, options = NO_OPTIONS): DiscoverInput => ({
+  options,
+  repoRoot,
+  sessionRoot: repoRoot,
+})
+const outsideGit = (sessionRoot: string, options = NO_OPTIONS): DiscoverInput => ({
+  options,
+  repoRoot: null,
+  sessionRoot,
+})
 
 const run = (files: Files, input: DiscoverInput) => discover(input, fakeTree(files).reader)
 const names = (found: { repos: { name: string }[] }) => found.repos.map(repo => repo.name)
@@ -113,7 +121,10 @@ test('discover: the docs folder comes from each lock, docs by default', async ()
 })
 
 test('discover: invalid entries in the listed repos are dropped one by one', async () => {
-  const files = { ...W, [`/w/service/${LOCK}`]: lockOf({ workspace: { repos: ['service', 7, 'web', '..', 'a/b'] } }) }
+  const files = {
+    ...W,
+    [`/w/service/${LOCK}`]: lockOf({ workspace: { repos: ['service', 7, 'web', '..', 'a/b'] } }),
+  }
   const found = await run(files, inGit('/w/service'))
   expect(found.root).toBe('/w')
   expect(names(found)).toEqual(['service', 'web'])
@@ -129,7 +140,10 @@ test('discover: a malformed workspace counts as none', async () => {
 
 test('discover: an invalid docs folder falls back to docs', async () => {
   for (const docsDir of ['../x', '/x']) {
-    const found = await run({ ...W, [`/w/infra/${LOCK}`]: lockOf({ settings: { docsDir } }) }, outsideGit('/w'))
+    const found = await run(
+      { ...W, [`/w/infra/${LOCK}`]: lockOf({ settings: { docsDir } }) },
+      outsideGit('/w'),
+    )
     expect(found.repos.find(repo => repo.name === 'infra')?.docsDir).toBe('docs')
   }
 })
@@ -155,11 +169,24 @@ test('discover: an invalid docs home is ignored without reading any lock through
 // The kit side: the plugin itself, its fs, session and git calls answered from a fake tree.
 
 const TASK = 'investigate the flaky login test and propose a fix'
-const COMPOSE = { model: 'm', promptModel: 'm', surfaces: ['terminal'], tools: [], outputStyle: null, traits: [] } as const
+const COMPOSE = {
+  model: 'm',
+  promptModel: 'm',
+  surfaces: ['terminal'],
+  tools: [],
+  outputStyle: null,
+  traits: [],
+} as const
 
-type Kit = ReturnType<typeof serveTree> & { tools: { name: string; description: string; inputSchema: Record<string, unknown> }[] }
+type Kit = ReturnType<typeof serveTree> & {
+  tools: { name: string; description: string; inputSchema: Record<string, unknown> }[]
+}
 
-function office(on: Parameters<typeof serveTree>[0], files: Files, session: { cwd: string; repo?: string }): Kit {
+function office(
+  on: Parameters<typeof serveTree>[0],
+  files: Files,
+  session: { cwd: string; repo?: string },
+): Kit {
   mock.clock(on)
   const served = serveTree(on, files, session)
   const tools: Kit['tools'] = []
@@ -184,21 +211,30 @@ const composed = async ($: Engine) =>
 
 const hireTool = (kit: Kit) => kit.tools.find(tool => tool.name === 'hire')
 
-test('root by userConfig: a hire is briefed on the configured folder', { options: { workspaceRoot: '/w' } }, async ($, on) => {
-  const kit = office(on, { ...W }, { cwd: '/elsewhere' })
-  await start($, '/elsewhere')
-  await hire($, { repo: 'service' })
-  expect(kit.spawns[0]?.prompt).toContain('Root: /w\n')
-  for (const repo of ['infra', 'service', 'web']) expect(kit.spawns[0]?.prompt).toContain(`- ${repo} (/w/${repo})`)
-})
+test(
+  'root by userConfig: a hire is briefed on the configured folder',
+  { options: { workspaceRoot: '/w' } },
+  async ($, on) => {
+    const kit = office(on, { ...W }, { cwd: '/elsewhere' })
+    await start($, '/elsewhere')
+    await hire($, { repo: 'service' })
+    expect(kit.spawns[0]?.prompt).toContain('Root: /w\n')
+    for (const repo of ['infra', 'service', 'web'])
+      expect(kit.spawns[0]?.prompt).toContain(`- ${repo} (/w/${repo})`)
+  },
+)
 
-test('dot folders: a dot folder with .git is not a repo', { options: { workspaceRoot: '/w' } }, async ($, on) => {
-  const kit = office(on, { ...W, ...repoFiles('/w/.cache') }, { cwd: '/w' })
-  await start($, '/w')
-  expect((await hire($, { repo: '.cache' })).result).toBe('Unknown repo ".cache".')
-  expect(hireTool(kit)?.description).toContain('(infra, service, web)')
-  expect(kit.spawns).toHaveLength(0)
-})
+test(
+  'dot folders: a dot folder with .git is not a repo',
+  { options: { workspaceRoot: '/w' } },
+  async ($, on) => {
+    const kit = office(on, { ...W, ...repoFiles('/w/.cache') }, { cwd: '/w' })
+    await start($, '/w')
+    expect((await hire($, { repo: '.cache' })).result).toBe('Unknown repo ".cache".')
+    expect(hireTool(kit)?.description).toContain('(infra, service, web)')
+    expect(kit.spawns).toHaveLength(0)
+  },
+)
 
 test('more than 30 repos: a toast says how many were skipped', async ($, on) => {
   const many = Array.from({ length: 32 }, (_, i) => `/w/r${String(i + 1).padStart(2, '0')}`)
@@ -268,19 +304,24 @@ for (const [kind, locks, toasts] of MISSING_HOMES) {
   })
 }
 
-const worktreeAdds = (kit: Kit) => kit.ran.filter(run => run.argv.includes('worktree') && run.argv.includes('add'))
+const worktreeAdds = (kit: Kit) =>
+  kit.ran.filter(run => run.argv.includes('worktree') && run.argv.includes('add'))
 
-test('infra never isolated: only options.neverIsolate keeps a repo out of worktrees', { options: { neverIsolate: ['infra'] } }, async ($, on) => {
-  const files = { ...W, [`/w/web/${LOCK}`]: lockOf({ settings: { neverIsolate: true } }) }
-  const kit = office(on, files, { cwd: '/w' })
-  await start($)
-  await hire($, { repo: 'infra', worktree: 'yes' })
-  expect(worktreeAdds(kit)).toHaveLength(0)
-  expect(kit.spawns[0]?.cwd).toBe('/w/infra')
-  await hire($, { repo: 'web', worktree: 'yes' })
-  expect(worktreeAdds(kit)).toHaveLength(1)
-  expect(kit.spawns[1]?.cwd).toMatch(/^\/w\/\.office-worktrees\/web-/)
-})
+test(
+  'infra never isolated: only options.neverIsolate keeps a repo out of worktrees',
+  { options: { neverIsolate: ['infra'] } },
+  async ($, on) => {
+    const files = { ...W, [`/w/web/${LOCK}`]: lockOf({ settings: { neverIsolate: true } }) }
+    const kit = office(on, files, { cwd: '/w' })
+    await start($)
+    await hire($, { repo: 'infra', worktree: 'yes' })
+    expect(worktreeAdds(kit)).toHaveLength(0)
+    expect(kit.spawns[0]?.cwd).toBe('/w/infra')
+    await hire($, { repo: 'web', worktree: 'yes' })
+    expect(worktreeAdds(kit)).toHaveLength(1)
+    expect(kit.spawns[1]?.cwd).toMatch(/^\/w\/\.office-worktrees\/web-/)
+  },
+)
 
 test('worktrees in the parent with .gitignore: the first one ignores its folder', async ($, on) => {
   const kit = office(on, { ...W }, { cwd: '/w' })
@@ -308,7 +349,11 @@ test('array, malformed object and invalid entries are dropped one by one', async
 
 for (const workspace of [{ repos: 'web' }, ['web']]) {
   test(`a malformed workspace ${JSON.stringify(workspace)} counts as none and the session goes on`, async ($, on) => {
-    office(on, { ...W, [`/w/service/${LOCK}`]: lockOf({ workspace }) }, { cwd: '/w/service', repo: '/w/service' })
+    office(
+      on,
+      { ...W, [`/w/service/${LOCK}`]: lockOf({ workspace }) },
+      { cwd: '/w/service', repo: '/w/service' },
+    )
     await start($, '/w/service')
     expect(await composed($)).toContain('Root: /w/service\n')
   })
@@ -323,10 +368,14 @@ test('broken lock (toast): a broken lock is toasted at start and the session goe
 
 for (const docsHome of ['./service', '..']) {
   test(`an invalid docs home ${docsHome} is ignored and no lock is read through it`, async ($, on) => {
-    const kit = office(on, { ...W, ...HOME_LOCK, [`/w/web/${LOCK}`]: lockOf({ settings: { docsHome } }) }, {
-      cwd: '/w/web',
-      repo: '/w/web',
-    })
+    const kit = office(
+      on,
+      { ...W, ...HOME_LOCK, [`/w/web/${LOCK}`]: lockOf({ settings: { docsHome } }) },
+      {
+        cwd: '/w/web',
+        repo: '/w/web',
+      },
+    )
     await start($, '/w/web')
     expect(await composed($)).toContain('Root: /w/web\n')
     expect(kit.reads.filter(path => path.endsWith(LOCK))).toEqual([`/w/web/${LOCK}`])
@@ -335,7 +384,13 @@ for (const docsHome of ['./service', '..']) {
 
 // The briefing (design §10.2): what the plugin composes, read from the fake tree.
 
-const briefed = async ($: Engine, on: Parameters<typeof serveTree>[0], files: Files, cwd = '/w', repo?: string) => {
+const briefed = async (
+  $: Engine,
+  on: Parameters<typeof serveTree>[0],
+  files: Files,
+  cwd = '/w',
+  repo?: string,
+) => {
   const kit = office(on, files, { cwd, repo })
   await start($, cwd)
   return { kit, text: await composed($) }
@@ -363,7 +418,8 @@ test('only what exists: rules, docs and the spanning pages are listed when on di
   expect(text).toContain('Docs: /w/service/docs/index.md')
   expect(text).toContain('Pages that span repos: /w/service/docs/workspace/index.md')
   expect(text).toContain('Rules: /w/web/AGENTS.md.')
-  for (const absent of ['/w/web/CLAUDE.md', '/w/infra/CLAUDE.md', '/w/infra/AGENTS.md']) expect(text).not.toContain(absent)
+  for (const absent of ['/w/web/CLAUDE.md', '/w/infra/CLAUDE.md', '/w/infra/AGENTS.md'])
+    expect(text).not.toContain(absent)
   expect(text).toContain("A repo's own CLAUDE.md or AGENTS.md wins over any skill.")
 })
 
@@ -400,10 +456,12 @@ test('several homes: the first in alphabetical order wins, with a toast', async 
   expect(kit.toasts.some(toast => toast.includes('service, web'))).toBe(true)
 })
 
-const summaryLine = (text: string, repo: string) => text.split('\n').find(line => line.startsWith(`- ${repo} (`)) ?? ''
+const summaryLine = (text: string, repo: string) =>
+  text.split('\n').find(line => line.startsWith(`- ${repo} (`)) ?? ''
 
 test('frontmatter and headings are skipped: the summary is the first sentence', async ($, on) => {
-  const index = '---\ntitle: Service\n---\n# Public API\n\n## Overview\n\nIt serves the public API. The web app calls it.\n'
+  const index =
+    '---\ntitle: Service\n---\n# Public API\n\n## Overview\n\nIt serves the public API. The web app calls it.\n'
   const { text } = await briefed($, on, { ...W, '/w/service/docs/index.md': index })
   expect(summaryLine(text, 'service')).toBe('- service (/w/service): It serves the public API.')
 })
@@ -481,11 +539,14 @@ test('briefing only with existing SKILL.md files and no ../', async ($, on) => {
   const { kit, text } = await briefed($, on, {
     ...W,
     '/w/web/.claude/skills/working-in-web/SKILL.md': `---\nname: working-in-web\ndescription: ${long}\n---\n# Body`,
-    '/w/web/.claude/skills/web-forms/SKILL.md': '---\nname: web-forms\ndescription: |\n  Use for forms.\n  Two lines.\n---\n',
+    '/w/web/.claude/skills/web-forms/SKILL.md':
+      '---\nname: web-forms\ndescription: |\n  Use for forms.\n  Two lines.\n---\n',
     '/w/web/.claude/skills/notes/readme.md': 'not a skill',
   })
-  const skills = text.split('\n').find(line => line.includes('Skills (read the file before working there):')) ?? ''
-  const described = /\/w\/web\/\.claude\/skills\/working-in-web\/SKILL\.md \(([^)]*)\)/.exec(skills)?.[1] ?? ''
+  const skills =
+    text.split('\n').find(line => line.includes('Skills (read the file before working there):')) ?? ''
+  const described =
+    /\/w\/web\/\.claude\/skills\/working-in-web\/SKILL\.md \(([^)]*)\)/.exec(skills)?.[1] ?? ''
   expect(described.length).toBeLessThanOrEqual(120)
   expect(long.startsWith(described.replace(/…$/, ''))).toBe(true)
   expect(skills).toContain('/w/web/.claude/skills/web-forms/SKILL.md')
@@ -499,18 +560,19 @@ test('briefing only with existing SKILL.md files and no ../', async ($, on) => {
 // Who receives the briefing (OFI-10).
 
 // A spawn the office did not start, as the engine raises it.
-const foreign = (cwd: string, extra: Record<string, unknown> = {}) => ({
-  tool_use_id: 't1',
-  prompt: 'carry on',
-  description: 'carry on',
-  subagentType: 'general-purpose',
-  provider: { plugin: 'engine', tier: 'core' },
-  parentModel: 'm',
-  background: true,
-  fork: false,
-  cwd,
-  ...extra,
-}) as never
+const foreign = (cwd: string, extra: Record<string, unknown> = {}) =>
+  ({
+    tool_use_id: 't1',
+    prompt: 'carry on',
+    description: 'carry on',
+    subagentType: 'general-purpose',
+    provider: { plugin: 'engine', tier: 'core' },
+    parentModel: 'm',
+    background: true,
+    fork: false,
+    cwd,
+    ...extra,
+  }) as never
 
 test('inside and outside the root: the prompt and a spawn inside get the briefing, one outside does not', async ($, on) => {
   const kit = office(on, { ...W }, { cwd: '/w' })
@@ -522,13 +584,17 @@ test('inside and outside the root: the prompt and a spawn inside get the briefin
   expect(kit.spawns[1]?.prompt).not.toContain('# Workspace')
 })
 
-test('session outside the root: the prompt has no briefing and a hire does', { options: { workspaceRoot: '/w' } }, async ($, on) => {
-  const kit = office(on, { ...W }, { cwd: '/elsewhere' })
-  await start($, '/elsewhere')
-  expect(await composed($)).not.toContain('# Workspace')
-  await hire($, { repo: 'service' })
-  expect(kit.spawns[0]?.prompt).toContain('Root: /w\n')
-})
+test(
+  'session outside the root: the prompt has no briefing and a hire does',
+  { options: { workspaceRoot: '/w' } },
+  async ($, on) => {
+    const kit = office(on, { ...W }, { cwd: '/elsewhere' })
+    await start($, '/elsewhere')
+    expect(await composed($)).not.toContain('# Workspace')
+    await hire($, { repo: 'service' })
+    expect(kit.spawns[0]?.prompt).toContain('Root: /w\n')
+  },
+)
 
 test('hire outside the root: a lone repo hire in a worktree beside it is still briefed', async ($, on) => {
   const kit = office(on, { ...W }, { cwd: '/w/service', repo: '/w/service' })
@@ -553,7 +619,8 @@ test('resume, fork and workflow: their prompt passes untouched', async ($, on) =
 // hire takes only discovered repos (OFI-11).
 
 const repoSchema = (kit: Kit) =>
-  (hireTool(kit)?.inputSchema as { properties: Record<string, { enum?: string[] }> } | undefined)?.properties.repo
+  (hireTool(kit)?.inputSchema as { properties: Record<string, { enum?: string[] }> } | undefined)?.properties
+    .repo
 
 test('enum: hire lists exactly the discovered repos', async ($, on) => {
   const kit = office(on, { ...W }, { cwd: '/w' })
@@ -597,7 +664,13 @@ async function pressApply($: Engine, on: Parameters<typeof serveTree>[0], diff: 
   kit.git.checkExit = checkExit
   expect((await hire($, { repo: 'service', worktree: 'yes' })).result).toContain('in its own worktree')
   await $.tool.call({ tool: 'mcp__office__roster' })
-  const ui = await $.ui.mount({ plugin: 'office', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'office' })
+  const ui = await $.ui.mount({
+    plugin: 'office',
+    surface: 'terminal',
+    component: 'Pane',
+    props: PANE,
+    requestId: 'office',
+  })
   await ui.press({ key: 'log-agent1' })
   await ui.press({ key: 'tab-changes' })
   await ui.press({ key: 'apply' })
@@ -605,11 +678,15 @@ async function pressApply($: Engine, on: Parameters<typeof serveTree>[0], diff: 
   return { kit, runs, applies: runs.filter(run => run.argv.includes('apply')) }
 }
 
-const BLANK_CONTEXT = 'diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n-one\n+two\n \n \n'
+const BLANK_CONTEXT =
+  'diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n@@ -1,3 +1,3 @@\n-one\n+two\n \n \n'
 const BINARY =
   'diff --git a/logo.png b/logo.png\nnew file mode 100644\nindex 0000000..1111111\nGIT binary patch\nliteral 4\nLcmZ?wbaVgy0RR91\n\nliteral 0\nHcmV?d00001\n\n'
 
-for (const [kind, diff] of [['ending in blank context', BLANK_CONTEXT], ['binary', BINARY]] as const) {
+for (const [kind, diff] of [
+  ['ending in blank context', BLANK_CONTEXT],
+  ['binary', BINARY],
+] as const) {
   test(`blank context and binary: a ${kind} patch reaches git apply byte for byte`, async ($, on) => {
     const { applies } = await pressApply($, on, diff)
     expect(applies).toHaveLength(2)
@@ -652,17 +729,30 @@ for (const [kind, end] of UNANSWERED) {
     await start($)
     await hire($, { repo: 'service' })
     await $.tool.call({ tool: 'mcp__office__roster' })
-    expect((await $.tool.call({ tool: 'mcp__office__ask', to: 'service-1', question: 'What does this repo do?' })).result).toContain('Question q1 sent')
-    expect((await $.tool.call({ tool: 'mcp__office__delegate', questionId: 'q1' })).result).toContain('A helper is answering q1')
+    expect(
+      (await $.tool.call({ tool: 'mcp__office__ask', to: 'service-1', question: 'What does this repo do?' }))
+        .result,
+    ).toContain('Question q1 sent')
+    expect((await $.tool.call({ tool: 'mcp__office__delegate', questionId: 'q1' })).result).toContain(
+      'A helper is answering q1',
+    )
 
     await $.turn.complete({ agentId: 'agent2', durationMs: 1, turnId: 't1', ...end })
 
     expect(JSON.stringify(session.appended())).not.toContain('Answer to q1')
     expect(kit.toasts.some(toast => toast.includes('q1'))).toBe(true)
-    const ui = await $.ui.mount({ plugin: 'office', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'office' })
+    const ui = await $.ui.mount({
+      plugin: 'office',
+      surface: 'terminal',
+      component: 'Pane',
+      props: PANE,
+      requestId: 'office',
+    })
     expect(await ui.find({ text: /\?1/ })).toBeDefined()
     // Open again, and with no helper: it can be delegated anew.
-    expect((await $.tool.call({ tool: 'mcp__office__delegate', questionId: 'q1' })).result).toContain('A helper is answering q1')
+    expect((await $.tool.call({ tool: 'mcp__office__delegate', questionId: 'q1' })).result).toContain(
+      'A helper is answering q1',
+    )
   })
 }
 
@@ -676,7 +766,14 @@ test('a helper turn with an answer closes q1 and delivers it', async ($, on) => 
   await $.tool.call({ tool: 'mcp__office__roster' })
   await $.tool.call({ tool: 'mcp__office__ask', to: 'service-1', question: 'What does this repo do?' })
   await $.tool.call({ tool: 'mcp__office__delegate', questionId: 'q1' })
-  await $.turn.complete({ agentId: 'agent2', durationMs: 1, turnId: 't1', reason: 'answer', answer: 'It serves the public API.', isAborted: false })
+  await $.turn.complete({
+    agentId: 'agent2',
+    durationMs: 1,
+    turnId: 't1',
+    reason: 'answer',
+    answer: 'It serves the public API.',
+    isAborted: false,
+  })
   expect(JSON.stringify(session.appended())).toContain('Answer to q1')
 })
 
@@ -688,7 +785,13 @@ async function withHire($: Engine, on: Parameters<typeof serveTree>[0]) {
   await start($)
   await hire($, { repo: 'service' })
   await $.tool.call({ tool: 'mcp__office__roster' })
-  const ui = await $.ui.mount({ plugin: 'office', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'office' })
+  const ui = await $.ui.mount({
+    plugin: 'office',
+    surface: 'terminal',
+    component: 'Pane',
+    props: PANE,
+    requestId: 'office',
+  })
   return { kit, ui }
 }
 
@@ -760,7 +863,14 @@ test('refused share: an answer the engine denies is not reported as in the chat'
   on('turn.complete', (_$, e) => ({ text: e.answer }))
   const { kit, ui } = await withHire($, on)
   kit.statuses.agent1 = 'completed'
-  await $.turn.complete({ agentId: 'agent1', durationMs: 1, turnId: 't1', reason: 'answer', answer: 'It serves the public API.', isAborted: false })
+  await $.turn.complete({
+    agentId: 'agent1',
+    durationMs: 1,
+    turnId: 't1',
+    reason: 'answer',
+    answer: 'It serves the public API.',
+    isAborted: false,
+  })
   await ui.press({ key: 'log-agent1' })
   await ui.press({ key: 'share' })
   expect(kit.toasts).toContain("Could not share service-1's answer: filtered")
@@ -770,11 +880,17 @@ test('refused share: an answer the engine denies is not reported as in the chat'
 test('refused question: a denied append registers nothing and toasts why', async ($, on) => {
   on('session.append', () => ({ deny: 'filtered' }))
   const { kit, ui } = await withHire($, on)
-  const asked = await $.tool.call({ tool: 'mcp__office__ask', to: 'service-1', question: 'What does this repo do?' })
+  const asked = await $.tool.call({
+    tool: 'mcp__office__ask',
+    to: 'service-1',
+    question: 'What does this repo do?',
+  })
   expect(String(asked.result)).not.toContain('Question q1 sent')
   expect(kit.toasts.some(toast => toast.includes('filtered'))).toBe(true)
   expect(await ui.find({ text: /\?1/ })).toBeUndefined()
-  expect((await $.tool.call({ tool: 'mcp__office__reply', questionId: 'q1', answer: 'x' })).result).toBe('There is no question q1.')
+  expect((await $.tool.call({ tool: 'mcp__office__reply', questionId: 'q1', answer: 'x' })).result).toBe(
+    'There is no question q1.',
+  )
 })
 
 test('finished agent: asking it says it finished, with no raw engine error', async ($, on) => {
@@ -805,9 +921,13 @@ test('refused answer: a denied append leaves q1 unanswered and off the board', a
   const replied = await $.tool.call({ tool: 'mcp__office__reply', questionId: 'q1', answer: 'The web app.' })
   expect(String(replied.result)).not.toContain('delivered.')
   expect(kit.toasts.some(toast => toast.includes('filtered'))).toBe(true)
-  expect((await $.tool.call({ tool: 'mcp__office__board', query: 'web app' })).result).toBe('The board has nothing on that yet.')
+  expect((await $.tool.call({ tool: 'mcp__office__board', query: 'web app' })).result).toBe(
+    'The board has nothing on that yet.',
+  )
   refuse = false
-  expect((await $.tool.call({ tool: 'mcp__office__reply', questionId: 'q1', answer: 'The web app.' })).result).toBe('Answer to q1 delivered.')
+  expect(
+    (await $.tool.call({ tool: 'mcp__office__reply', questionId: 'q1', answer: 'The web app.' })).result,
+  ).toBe('Answer to q1 delivered.')
 })
 
 test('briefing and isolated task: the root and the worktree are absolute, with no ../', async ($, on) => {
@@ -816,19 +936,25 @@ test('briefing and isolated task: the root and the worktree are absolute, with n
   expect(await composed($)).toContain('Root: /w\n')
   await hire($, { repo: 'service', worktree: 'yes' })
   const prompt = kit.spawns[0]?.prompt ?? ''
-  expect(prompt).toMatch(/You work in \/w\/\.office-worktrees\/service-\S+, an isolated git worktree of \/w\/service/)
+  expect(prompt).toMatch(
+    /You work in \/w\/\.office-worktrees\/service-\S+, an isolated git worktree of \/w\/service/,
+  )
   expect(prompt).toContain('Root: /w\n')
   expect(prompt).not.toContain('../')
 })
 
-test('common prefix: a spawn in a sibling that shares the root prefix is not briefed', { options: { workspaceRoot: '/x/work' } }, async ($, on) => {
-  const kit = office(on, { ...repoFiles('/x/work/a', '/x/work-old/a') }, { cwd: '/x/work' })
-  await start($, '/x/work')
-  await $.agent.spawn(foreign('/x/work/a'))
-  await $.agent.spawn(foreign('/x/work-old/a'))
-  expect(kit.spawns[0]?.prompt).toContain('Root: /x/work\n')
-  expect(kit.spawns[1]?.prompt).not.toContain('# Workspace')
-})
+test(
+  'common prefix: a spawn in a sibling that shares the root prefix is not briefed',
+  { options: { workspaceRoot: '/x/work' } },
+  async ($, on) => {
+    const kit = office(on, { ...repoFiles('/x/work/a', '/x/work-old/a') }, { cwd: '/x/work' })
+    await start($, '/x/work')
+    await $.agent.spawn(foreign('/x/work/a'))
+    await $.agent.spawn(foreign('/x/work-old/a'))
+    expect(kit.spawns[0]?.prompt).toContain('Root: /x/work\n')
+    expect(kit.spawns[1]?.prompt).not.toContain('# Workspace')
+  },
+)
 
 test('empty root: a tool summary keeps its paths whole', async ($, on) => {
   const kit = office(on, { '/w/notes/a.md': 'x' }, { cwd: '/w' })
@@ -837,7 +963,13 @@ test('empty root: a tool summary keeps its paths whole', async ($, on) => {
       {
         role: 'assistant' as const,
         text: '',
-        toolUses: [{ tool: 'Bash', tool_use_id: 't1', input: { command: 'make test', description: 'Run the tests in /w/service' } }],
+        toolUses: [
+          {
+            tool: 'Bash',
+            tool_use_id: 't1',
+            input: { command: 'make test', description: 'Run the tests in /w/service' },
+          },
+        ],
       },
     ],
   }))
@@ -845,7 +977,13 @@ test('empty root: a tool summary keeps its paths whole', async ($, on) => {
   await hire($)
   expect(kit.spawns).toHaveLength(1)
   await $.tool.call({ tool: 'mcp__office__roster' })
-  const ui = await $.ui.mount({ plugin: 'office', surface: 'terminal', component: 'Pane', props: PANE, requestId: 'office' })
+  const ui = await $.ui.mount({
+    plugin: 'office',
+    surface: 'terminal',
+    component: 'Pane',
+    props: PANE,
+    requestId: 'office',
+  })
   await ui.press({ key: 'log-agent1' })
   await ui.press({ key: 'tab-steps' })
   expect(await ui.find({ text: /Run the tests in \/w\/service/ })).toBeDefined()
@@ -865,39 +1003,60 @@ const STAMP = {
   }) satisfies Register,
 }
 
-test('the hook rewrites cwd: hire names each agent and the hook sets its folder', { plugins: [STAMP] }, async ($, on) => {
-  const kit = office(on, { ...W }, { cwd: '/w' })
-  await start($)
-  await hire($, { repo: 'service' })
-  await hire($, { repo: 'service', worktree: 'yes' })
-  expect(kit.spawns.map(spawn => spawn.name)).toEqual(['service-1', 'service-2'])
-  expect(kit.spawns[0]?.cwd).toBe('/w/service')
-  expect(kit.spawns[1]?.cwd).toMatch(/^\/w\/\.office-worktrees\/service-/)
-  await $.tool.call({ tool: 'mcp__office__roster' })
-  const asked = await $.tool.call({ tool: 'mcp__office__ask', to: 'service-1', question: 'What does this repo do?' })
-  expect(asked.result).toContain('Question q1 sent')
-  expect(kit.spawns.map(spawn => spawn.description.endsWith('[seen cwd=none]'))).toEqual([true, true])
-})
+test(
+  'the hook rewrites cwd: hire names each agent and the hook sets its folder',
+  { plugins: [STAMP] },
+  async ($, on) => {
+    const kit = office(on, { ...W }, { cwd: '/w' })
+    await start($)
+    await hire($, { repo: 'service' })
+    await hire($, { repo: 'service', worktree: 'yes' })
+    expect(kit.spawns.map(spawn => spawn.name)).toEqual(['service-1', 'service-2'])
+    expect(kit.spawns[0]?.cwd).toBe('/w/service')
+    expect(kit.spawns[1]?.cwd).toMatch(/^\/w\/\.office-worktrees\/service-/)
+    await $.tool.call({ tool: 'mcp__office__roster' })
+    const asked = await $.tool.call({
+      tool: 'mcp__office__ask',
+      to: 'service-1',
+      question: 'What does this repo do?',
+    })
+    expect(asked.result).toContain('Question q1 sent')
+    expect(kit.spawns.map(spawn => spawn.description.endsWith('[seen cwd=none]'))).toEqual([true, true])
+  },
+)
 
-test('without a repo: a hire and /office --worktree take the session folder as their label', { plugins: [STAMP] }, async ($, on) => {
-  const kit = office(on, { ...W }, { cwd: '/w/web', repo: '/w/web' })
-  await start($, '/w/web')
-  await hire($)
-  await $.command.run({ command: 'office', args: `--worktree ${TASK}`, origin: {}, presentation: {} } as never)
-  const [first, second] = kit.spawns
-  expect(first?.name).toMatch(/^web-\d+$/)
-  expect(second?.name).toMatch(/^web-\d+$/)
-  expect(first?.name).not.toBe(second?.name)
-  expect(first?.cwd).toBe('/w/web')
-  expect(second?.cwd).toMatch(/^\/w\/\.office-worktrees\/web-/)
-  expect(kit.spawns.every(spawn => spawn.description.endsWith('[seen cwd=none]'))).toBe(true)
-})
+test(
+  'without a repo: a hire and /office --worktree take the session folder as their label',
+  { plugins: [STAMP] },
+  async ($, on) => {
+    const kit = office(on, { ...W }, { cwd: '/w/web', repo: '/w/web' })
+    await start($, '/w/web')
+    await hire($)
+    await $.command.run({
+      command: 'office',
+      args: `--worktree ${TASK}`,
+      origin: {},
+      presentation: {},
+    } as never)
+    const [first, second] = kit.spawns
+    expect(first?.name).toMatch(/^web-\d+$/)
+    expect(second?.name).toMatch(/^web-\d+$/)
+    expect(first?.name).not.toBe(second?.name)
+    expect(first?.cwd).toBe('/w/web')
+    expect(second?.cwd).toMatch(/^\/w\/\.office-worktrees\/web-/)
+    expect(kit.spawns.every(spawn => spawn.description.endsWith('[seen cwd=none]'))).toBe(true)
+  },
+)
 
-test('without a repo outside git: a hire is labelled after the session folder', { plugins: [STAMP] }, async ($, on) => {
-  const kit = office(on, { ...W }, { cwd: '/w' })
-  await start($)
-  await hire($)
-  expect(kit.spawns[0]?.name).toMatch(/^w-\d+$/)
-  expect(kit.spawns[0]?.cwd).toBe('/w')
-  expect(kit.spawns[0]?.description.endsWith('[seen cwd=none]')).toBe(true)
-})
+test(
+  'without a repo outside git: a hire is labelled after the session folder',
+  { plugins: [STAMP] },
+  async ($, on) => {
+    const kit = office(on, { ...W }, { cwd: '/w' })
+    await start($)
+    await hire($)
+    expect(kit.spawns[0]?.name).toMatch(/^w-\d+$/)
+    expect(kit.spawns[0]?.cwd).toBe('/w')
+    expect(kit.spawns[0]?.description.endsWith('[seen cwd=none]')).toBe(true)
+  },
+)
