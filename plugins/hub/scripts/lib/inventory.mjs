@@ -175,6 +175,9 @@ function collapse(files, excluded) {
   return [...out].sort()
 }
 
+// Where GitHub reads the owners from, by the path alone: its lines name people (IMP-5).
+export const codeOwnersPath = files => ['CODEOWNERS', '.github/CODEOWNERS', 'docs/CODEOWNERS'].find(p => files.includes(p)) ?? null
+
 export function buildInventory(repoDir, catalog) {
   const stage = lsStage(repoDir)
   const submodules = stage.filter(e => e.mode === '160000').map(e => e.path)
@@ -223,7 +226,7 @@ export function buildInventory(repoDir, catalog) {
   }
 
   const dirty = git(repoDir, ['status', '--porcelain', '--untracked-files=no']).stdout.split('\n').filter(Boolean)
-  const codeowners = ['CODEOWNERS', '.github/CODEOWNERS', 'docs/CODEOWNERS'].find(p => files.includes(p)) ?? null
+  const codeowners = codeOwnersPath(files)
 
   return {
     repo: basename(repoDir),
