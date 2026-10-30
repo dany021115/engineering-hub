@@ -29,8 +29,10 @@ describe('a stable sample of placed sentences (EVI-4)', () => {
     assert.ok(existsSync(join(run.ctx.root, '.hub-run', 'sample.json')))
     assert.deepEqual(itemsOf(sample(run)), items)
     assert.deepEqual(run.status(), before)
-    const config = items.find(i => i.text.includes('`src/config.ts`'))
-    assert.ok(config, first.output)
+    // The seed follows HEAD, whose hash changes with the fixture's commit time: look in every sentence.
+    const all = itemsOf(sample(run, '--n', '30'))
+    const config = all.find(i => i.text.includes('`src/config.ts`'))
+    assert.ok(config, JSON.stringify(all))
     assert.deepEqual(config.open, ['src/config.ts'])
   })
 
