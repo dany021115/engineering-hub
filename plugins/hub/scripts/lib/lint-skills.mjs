@@ -15,7 +15,8 @@ const DOUBLE_KEYS = ['hooks', 'context', 'agent', 'model']
 //   archetype   the plan's or lock's archetype, when there is one
 //   sections    check the archetype's required sections (only with a plan or lock, language en)
 //   exists      path -> boolean for backticked paths; null skips the check (--authoring)
-export function lintSkill(text, { folder, catalog, authoring = false, archetype = null, sections = false, exists = null }) {
+//   unchecked   path -> the related repo it lives in when that repo is not checked out (DRI-5)
+export function lintSkill(text, { folder, catalog, authoring = false, archetype = null, sections = false, exists = null, unchecked = () => null }) {
   const out = []
   const err = message => out.push({ gate: 'skills', message })
   const fm = splitFrontmatter(text)
@@ -100,7 +101,10 @@ export function lintSkill(text, { folder, catalog, authoring = false, archetype 
     for (const l of lines.filter(x => x.kind === 'prose')) {
       for (const span of codeSpans(l.text)) {
         if (!isPathLike(span) || isPlaceholder(span) || HOME_PATH.test(span)) continue
-        if (!exists(span)) err(`line ${l.n}: the path ${span} does not exist`)
+        if (exists(span)) continue
+        const away = unchecked(span)
+        if (away) out.push({ gate: 'skills', severity: 'warning', message: `line ${l.n}: the path ${span} is in ${away}, which is not next to this repository, so it was not checked` })
+        else err(`line ${l.n}: the path ${span} does not exist`)
       }
     }
   }

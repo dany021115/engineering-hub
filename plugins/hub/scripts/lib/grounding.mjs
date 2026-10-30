@@ -39,9 +39,16 @@ function fileStems(dir, docsDir) {
 //   exists     path -> boolean over the repo with out/ overlaid, siblings included
 //   repos      [{ dir, docsDir }] where an identifier may be found, own repo first
 //   names      the names of those repos, which a page may give without grounding them
-export function ground(text, { catalog, paths, exists, repos, names = [], cache }) {
+//   absent     related repos that are not checked out: what may live there is only a warning (DRI-5)
+export function ground(text, { catalog, paths, exists, repos, names = [], absent = [], cache }) {
   const out = []
   const err = (message, n) => out.push({ gate: 'grounding', message: `line ${n}: ${message}` })
+  const warn = (message, n) => out.push({ gate: 'grounding', severity: 'warning', message: `line ${n}: ${message}` })
+  const mentions = (name, text) => new RegExp(`(^|[^A-Za-z0-9._-])${name.replace(/[.]/g, '\\.')}([^A-Za-z0-9_-]|$)`).test(text)
+  const awayIn = span => {
+    const [first, ...rest] = span.split('/')
+    return rest.length && absent.includes(first) ? first : null
+  }
   const fm = splitFrontmatter(text)
   const lines = classify(fm.body, fm.offset)
   const found = (needle, opts) => {
@@ -66,9 +73,19 @@ export function ground(text, { catalog, paths, exists, repos, names = [], cache 
     for (const span of codeSpans(l.text)) {
       if (isPlaceholder(span)) continue
       if (isPathLike(span)) {
-        if (paths && !exists(span)) err(`the path ${span} does not exist`, l.n)
+        if (paths && !exists(span)) {
+          const away = awayIn(span)
+          if (away) warn(`the path ${span} is in ${away}, which is not next to this repository, so it was not checked`, l.n)
+          else err(`the path ${span} does not exist`, l.n)
+        }
       } else if (looksLikeIdentifier(span) && !catalog.groundingAllow.includes(span) && !names.includes(span)) {
-        if (!found(span, { word: true }) && !together(span) && !named(span)) err(`the identifier ${span} appears nowhere outside the docs`, l.n)
+        if (!found(span, { word: true }) && !together(span) && !named(span)) {
+          // DRI-5: a warning only on a line about a repo that is not here; anywhere else an error.
+          const about = absent.filter(name => mentions(name, l.text))
+          if (about.length) {
+            warn(`the identifier ${span} may live in ${about.join(', ')}, which ${about.length === 1 ? 'is' : 'are'} not next to this repository, so it was not checked`, l.n)
+          } else err(`the identifier ${span} appears nowhere outside the docs`, l.n)
+        }
       }
     }
   }

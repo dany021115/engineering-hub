@@ -4,7 +4,7 @@ import { ground } from './grounding.mjs'
 import { git, hashObject, lsFiles } from './git.mjs'
 import { lintDoc } from './lint-docs.mjs'
 import { lintSkill } from './lint-skills.mjs'
-import { readLock } from './lock.mjs'
+import { isRepoName, readLock, relatedRepos } from './lock.mjs'
 import { proposalFile, stagingFile } from './paths.mjs'
 import { countSupported, factIndex, matchPage } from './plan.mjs'
 import { historyNames, makeScanner } from './scan.mjs'
@@ -59,6 +59,15 @@ export function treeState(root, { plan = null, catalog, language, mode, repo = n
   const dirs = repoDirs(root)
   const named = plan ? [...Object.keys(plan.repos ?? {}), ...(plan.workspace?.repos ?? [])] : repo ? [repo] : Object.keys(dirs)
   const scope = citable(dirs, named)
+  // DRI-5: the repos these locks relate to that are not checked out next to them, as in CI.
+  const relatedOf = name => {
+    try {
+      return relatedRepos(readLock(dirs[name]), name)
+    } catch {
+      return []
+    }
+  }
+  const absent = [...new Set(named.filter(n => dirs[n]).flatMap(relatedOf))].filter(n => isRepoName(n) && !dirs[n])
   const repos = {}
   const view = name => {
     if (repos[name]) return repos[name]
@@ -83,7 +92,12 @@ export function treeState(root, { plan = null, catalog, language, mode, repo = n
     repos[name] = { name, dir, lock, docsDir, entries, live, existing, overlay, exists: makeExists(existing) }
     return repos[name]
   }
-  const state = { root, dirs, scope, plan, catalog, language, mode, view, grep: new Map(), scanners: new Map() }
+  const state = { root, dirs, scope, absent, plan, catalog, language, mode, view, grep: new Map(), scanners: new Map() }
+  // The absent related repo a `<repo>/<path>` lives in, which no gate can check.
+  state.unchecked = p => {
+    const [first, ...rest] = p.split('/')
+    return rest.length && absent.includes(first) ? first : null
+  }
   // After the plan drops an entry, the next view of each repo reads it again; the caches stay.
   state.reset = () => {
     for (const name of Object.keys(repos)) delete repos[name]
@@ -168,6 +182,7 @@ export function fileGates(target, state, extra = {}) {
         archetype: target.archetype ?? null,
         sections: language === 'en',
         exists: p => state.exists(target.repo, p),
+        unchecked: p => state.unchecked(p),
       }),
     )
     const others = (extra.owners?.get(folder) ?? []).filter(o => o.repo !== target.repo)
@@ -201,6 +216,7 @@ export function fileGates(target, state, extra = {}) {
         exists: p => state.exists(target.repo, p),
         repos: repos.map(r => ({ dir: r.dir, docsDir: r.docsDir })),
         names: state.scope,
+        absent: state.absent,
         cache: state.grep,
       }),
     )

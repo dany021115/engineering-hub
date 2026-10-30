@@ -5,6 +5,7 @@ import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { BASE_FILES, sandbox } from './helper.mjs'
 import { messages } from './gate-fixture.mjs'
+import { cloneAlone, lockedWorkspace, WEB_SKILL, webSkillText } from './workspace-fixture.mjs'
 
 const sb = sandbox()
 after(() => sb.cleanup())
@@ -154,4 +155,52 @@ test('a member lock grounds in its workspace, never in other projects of the fol
   assert.equal(r.code, 1)
   assert.match(messages(r).join('\n'), /the identifier INFRA_ONLY appears nowhere/)
   assert.match(messages(r).join('\n'), /the path infra\/deploy\/run\.sh does not exist/)
+})
+
+describe('a related repository that is not checked out is not checked (DRI-5)', () => {
+  const notHere = /which is not next to this repository, so it was not checked/
+  const warningsOf = r => r.json().warnings.map(w => w.message).join('\n')
+
+  test('member alone', () => {
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-member') })
+    const r = checkLock(cloneAlone(sb, w.web, 'web'))
+    assert.equal(r.code, 0, r.output)
+    assert.match(warningsOf(r), /the path service\/src\/app\.ts is in service, which is not next to this repository/)
+  })
+
+  test('home alone', () => {
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-home') })
+    const r = checkLock(cloneAlone(sb, w.service, 'service'))
+    assert.equal(r.code, 0, r.output)
+    assert.match(warningsOf(r), /the path web\/src\/client\.ts is in web, which is not next to this repository/)
+  })
+
+  test('workspace', () => {
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-ws') })
+    for (const dir of [w.web, w.service]) {
+      const r = checkLock(dir)
+      assert.equal(r.code, 0, r.output)
+      assert.doesNotMatch(warningsOf(r), notHere)
+    }
+  })
+
+  test('invented paths', () => {
+    const text = webSkillText('\nAlso see `src/nope.ts` and `ghost/x.ts`.\n')
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-invented'), texts: { web: { [WEB_SKILL]: text } } })
+    const r = checkLock(cloneAlone(sb, w.web, 'web'))
+    assert.equal(r.code, 1, r.output)
+    const errors = messages(r).join('\n')
+    assert.match(errors, /the path src\/nope\.ts does not exist/)
+    assert.match(errors, /the path ghost\/x\.ts does not exist/)
+  })
+
+  test('identifiers by line', () => {
+    const text = webSkillText('\nThe client sends `NOT_IN_ANY_REPO` on every call.\n\nThe service reads `NOT_IN_ANY_REPO` in `service/src/app.ts`.\n')
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-ids'), texts: { web: { [WEB_SKILL]: text } } })
+    const r = checkLock(cloneAlone(sb, w.web, 'web'))
+    assert.equal(r.code, 1, r.output)
+    const errors = messages(r).join('\n')
+    assert.equal(errors.match(/the identifier NOT_IN_ANY_REPO appears nowhere outside the docs/g)?.length, 1, errors)
+    assert.match(warningsOf(r), /the identifier NOT_IN_ANY_REPO may live in service, which is not next to this repository/)
+  })
 })
