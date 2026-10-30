@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { basename, dirname } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { HubError } from './cli.mjs'
-import { git, hashObject, revParse } from './git.mjs'
+import { git, hashObject, revParse, topLevel } from './git.mjs'
 import { lockPath } from './paths.mjs'
 
 // Instruction files are the person's; the lock never tracks them (design 7).
@@ -52,6 +52,42 @@ export function fileEntry(repoDir, path, { kind, type, archetype, sources = {} }
   if (archetype) entry.archetype = archetype
   if (type) entry.type = type
   return entry
+}
+
+// A sibling repo is named by its folder, never by a path (the office's isRepoName).
+export const isRepoName = name => typeof name === 'string' && /^[A-Za-z0-9._-]+$/.test(name) && name !== '.' && name !== '..'
+
+// The repos a lock relates to: its docs home, its workspace's repos and the owner of every
+// `<repo>:<path>` source, so a member whose home is not checked out still knows its siblings.
+export function relatedRepos(lock, self) {
+  const names = []
+  const add = name => {
+    if (name !== self && !names.includes(name)) names.push(name)
+  }
+  if (lock?.settings && 'docsHome' in lock.settings) add(lock.settings.docsHome)
+  for (const name of lock?.workspace?.repos ?? []) add(name)
+  for (const entry of Object.values(lock?.files ?? {})) {
+    for (const key of Object.keys(entry?.sources ?? {})) {
+      const m = /^([A-Za-z0-9._-]+):(.+)$/.exec(key)
+      if (m) add(m[1])
+    }
+  }
+  return names
+}
+
+// Each related repo of the lock at `dir`, looked up next to it as currentId does: where it is,
+// whether it is there, its lock, and what went wrong (a bad name or a lock that does not parse).
+export function relatedLocks(dir, lock) {
+  return relatedRepos(lock, basename(dir)).map(name => {
+    if (!isRepoName(name)) return { name, dir: null, present: false, lock: null, problem: `${JSON.stringify(name)} is not a repository name` }
+    const at = join(dirname(dir), name)
+    if (!existsSync(at) || topLevel(at) !== at) return { name, dir: at, present: false, lock: null, problem: null }
+    try {
+      return { name, dir: at, present: true, lock: readLock(at), problem: null }
+    } catch (err) {
+      return { name, dir: at, present: true, lock: null, problem: err.message }
+    }
+  })
 }
 
 // Design 15.7.67: a quote's path gives its blob, an absence's pathspec its folder's tree,
