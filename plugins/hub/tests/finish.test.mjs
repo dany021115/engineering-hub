@@ -281,3 +281,55 @@ describe('done.json, refusals and confinement (GEN-5, GEN-13, PUE-8)', () => {
     })
   }
 })
+
+describe('the spot check in done.json (EVI-6)', () => {
+  const sampled = run => {
+    assert.equal(run.place().code, 0)
+    const r = sb.hub(['sample', run.ctx.planFile, '--json'], { cwd: run.ctx.root })
+    assert.equal(r.code, 0, r.output)
+    return r.json().items
+  }
+  const doneOf = run => JSON.parse(readFileSync(join(run.ctx.root, '.hub-run', 'done.json'), 'utf8'))
+  const finishText = (run, ...args) => sb.hub(['finish', run.ctx.planFile, ...args], { cwd: run.ctx.root })
+
+  test('numbers', () => {
+    const run = approvedRun(sb, [s1(), p1(), p2()])
+    const items = sampled(run)
+    assert.equal(items.length, 5)
+    const r = finishText(run, '--keep', 'all', '--spot', '2,4')
+    assert.equal(r.code, 0, r.output)
+    const pick = n => ({ repo: items[n - 1].repo, path: items[n - 1].path, line: items[n - 1].line, text: items[n - 1].text })
+    assert.deepEqual(doneOf(run).spot, { sampled: 5, answer: 'some', mismatched: [pick(2), pick(4)] })
+    const where = [pick(2), pick(4)].map(m => `${m.repo} ${m.path}:${m.line}`).join(', ')
+    assert.ok(r.stdout.includes(`spot check: 5 sampled, 2 did not match: ${where}\n`), r.output)
+  })
+
+  test('none and absent', () => {
+    let run = approvedRun(sb, [s1(), p1()])
+    const items = sampled(run)
+    let r = finishText(run, '--keep', 'all', '--spot', 'none')
+    assert.equal(r.code, 0, r.output)
+    assert.deepEqual(doneOf(run).spot, { sampled: items.length, answer: 'none', mismatched: [] })
+    assert.match(r.stdout, /^spot check: not checked$/m)
+    run = approvedRun(sb, [s1(), p1()])
+    sampled(run)
+    r = run.finish('--keep', 'all')
+    assert.equal(r.code, 0, r.output)
+    assert.equal('spot' in doneOf(run), false)
+    assert.equal('spot' in r.json(), false)
+  })
+
+  test('invalid', () => {
+    const run = approvedRun(sb, [s1(), p1(), p2()])
+    assert.equal(sampled(run).length, 5)
+    const before = run.status()
+    for (const value of ['9', 'two', '2,x', '']) {
+      const r = run.finish('--keep', 'all', '--spot', value)
+      assert.equal(r.code, 2, `${JSON.stringify(value)}: ${r.output}`)
+      assert.equal(done(run), false)
+      assert.equal(lockExists(run.ctx.service), false)
+      assert.deepEqual(run.status(), before)
+    }
+    assert.match(run.finish('--keep', 'all', '--spot', '9').stderr, /there is no sentence 9 in the sample/)
+  })
+})

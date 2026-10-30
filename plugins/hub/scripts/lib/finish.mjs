@@ -40,12 +40,35 @@ function commitMessage(dir, what, verb) {
   return `${verb[0].toUpperCase()}${verb.slice(1)} ${what}`
 }
 
-// `finish <plan.json> [--keep all|none|<ids>] [--apply <ids>]` (design 15.1.9, 15.7.67-70,
+// EVI-6: what the person said about the sampled sentences, with the ones that did not match, and
+// nothing about who said it. Checked before anything is written.
+function spotCheck(run, value) {
+  const file = join(run, 'sample.json')
+  const items = existsSync(file) ? readJson(file).items ?? [] : []
+  if (['none', 'all', 'some'].includes(value)) return { sampled: items.length, answer: value, mismatched: [] }
+  const numbers = [...new Set(value.split(',').map(s => s.trim()))]
+  if (numbers.some(s => !/^\d+$/.test(s))) throw usage(`--spot takes none, all, some or sentence numbers, not ${JSON.stringify(value)}`)
+  const mismatched = numbers.map(s => {
+    const item = items.find(i => i.n === Number(s))
+    if (!item) throw usage(`--spot: there is no sentence ${s} in the sample`)
+    return { repo: item.repo, path: item.path, line: item.line, text: item.text }
+  })
+  return { sampled: items.length, answer: 'some', mismatched }
+}
+
+function spotLine(spot) {
+  if (spot.answer === 'none') return 'spot check: not checked'
+  if (spot.answer === 'all') return `spot check: ${spot.sampled} sampled, all matched`
+  if (!spot.mismatched.length) return `spot check: ${spot.sampled} sampled, some did not match`
+  return `spot check: ${spot.sampled} sampled, ${spot.mismatched.length} did not match: ${spot.mismatched.map(m => `${m.repo} ${m.path}:${m.line}`).join(', ')}`
+}
+
+// `finish <plan.json> [--keep all|none|<ids>] [--apply <ids>] [--spot …]` (design 15.1.9, 15.7.67-70,
 // 15.8.103, 15.8.105, 15.8.135, 15.8.137-138): keep or undo what place did, apply the accepted
 // proposals, write the locks, check confinement and leave done.json. It never records a change in git.
 export default function finish(argv) {
-  const { values, positionals } = parseOptions(argv, { keep: { type: 'string' }, apply: { type: 'string' } }, { positionals: true })
-  if (positionals.length !== 1) throw usage('usage: hub.mjs finish <plan.json> [--keep all|none|<ids>] [--apply <ids>] [--json]')
+  const { values, positionals } = parseOptions(argv, { keep: { type: 'string' }, apply: { type: 'string' }, spot: { type: 'string' } }, { positionals: true })
+  if (positionals.length !== 1) throw usage('usage: hub.mjs finish <plan.json> [--keep all|none|<ids>] [--apply <ids>] [--spot none|all|some|<n,...>] [--json]')
   const { path, plan, root, run } = loadPlanFile(positionals[0])
   refuseUnless(run, plan, 'finish')
   if (!existsSync(placedFile(run))) throw new HubError('finish: nothing is placed yet; run place first')
@@ -65,9 +88,11 @@ export default function finish(argv) {
     if (!e || e.f.action !== 'propose') throw usage(`--apply: ${id} is not a proposal of the plan`)
   }
   const kept = id => keep === 'all' || (keep instanceof Set && keep.has(id))
+  const spot = values.spot === undefined ? null : spotCheck(run, values.spot)
 
   const res = result()
   const report = { kept: [], discarded: [], changed: [], applied: [], notApplied: [], unexpected: [], removed: [], locks: [] }
+  if (spot) report.spot = spot
   const allowed = Object.fromEntries(repos.map(r => [r, new Set()]))
   const catalog = loadCatalog()
 
@@ -255,6 +280,7 @@ export default function finish(argv) {
   for (const c of report.changed) res.lines.push(`left as it is (changed since place): ${c.repo} ${c.path}`)
   for (const n of report.notApplied) res.lines.push(`not applied: ${n.repo} ${n.id} ${n.path}: ${n.reason}`)
   for (const u of report.unexpected) res.lines.push(`unexpected: ${u}`)
+  if (spot) res.lines.push(spotLine(spot))
   res.lines.push(`locks written: ${report.locks.join(', ') || 'none'}`)
   res.lines.push(`suggested message: ${res.data.message}`)
   if (plan.mode !== 'site') res.lines.push('the new skills are active already, before anything is recorded in git')
