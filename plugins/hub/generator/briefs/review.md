@@ -35,5 +35,5 @@ One JSON line per finding, and nothing else. No findings means an empty answer.
   - `unsupported`: nothing in the code shows it;
   - `restates-instructions`: it repeats the repository's `CLAUDE.md` or `AGENTS.md` instead of pointing to it;
   - `duplicates-page`: a procedure skill repeats the steps of a how-to page in the table instead of linking to it.
-- `evidence` quotes the committed code verbatim, as `{path, quote}`. A `false` or `wrong-command` finding without a valid quote is dropped.
+- `evidence` quotes the committed code verbatim, as `{path, quote}`. A `false` or `wrong-command` finding without a valid quote is dropped. In a workspace, a file of another repository is cited as `<repo>:<path>`.
 - `fix` says what the sentence should say, or that it should go.

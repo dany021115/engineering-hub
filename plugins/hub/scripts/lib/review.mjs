@@ -16,13 +16,23 @@ const NEED_QUOTE = ['false', 'wrong-command']
 // The problems a finding states about one sentence, which round 2 can take out on its own.
 const ONE_SENTENCE = ['false', 'unsupported', 'wrong-command']
 
+// A reviewer may cite a repository's file as the pages write it, `<repo>/<path>`: a path missing
+// from this repository's HEAD whose first folder names a repository of the workspace is that one's.
+function reviewPath(env, value, repo) {
+  const at = splitRepoPath(env, value, repo)
+  const [first, ...rest] = value.split('/')
+  if (at.error || at.repo !== repo || !rest.length || !env.dirs[first]) return at
+  const here = git(env.dirs[repo], ['cat-file', '-e', `HEAD:${value.replace(/\/+$/, '')}`], { allowFail: true })
+  return here.status === 0 ? at : { repo: first, path: rest.join('/') }
+}
+
 // A reviewer's evidence holds when a quote is in HEAD or an absence is absent from it.
 function citationHolds(env, repo, evidence) {
   if (!Array.isArray(evidence) || !evidence.length) return false
   const { limits } = env.catalog
   return evidence.every(item => {
     if (item && typeof item.quote === 'string' && typeof item.path === 'string') {
-      const at = splitRepoPath(env, item.path, repo)
+      const at = reviewPath(env, item.path, repo)
       const ctx = !at.error && env.repo(at.repo)
       const quote = normalize(item.quote)
       if (!ctx || quote.length < limits.quoteMinChars || quote.length > limits.quoteMaxChars) return false
@@ -30,7 +40,7 @@ function citationHolds(env, repo, evidence) {
       return text !== null && holdsQuote(text, quote)
     }
     if (item && typeof item.absence === 'string' && item.absence.trim()) {
-      const at = item.pathspec ? splitRepoPath(env, item.pathspec, repo) : { repo }
+      const at = item.pathspec ? reviewPath(env, item.pathspec, repo) : { repo }
       const ctx = !at.error && env.repo(at.repo)
       return Boolean(ctx) && absentInHead(ctx.dir, item.absence, at.path)
     }

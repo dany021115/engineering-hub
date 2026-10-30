@@ -121,3 +121,23 @@ test('a finding on a line the person wrote into a file they edited is left to th
   assert.deepEqual([out.kept, out.left], [1, 1])
   assert.match(JSON.stringify(out.warnings), /left to the person, on a line they wrote by hand: unsupported: Ask a teammate/)
 })
+
+test('in a workspace, a citation of a repository written <repo>/<path>, as the pages write it, is read in that repository', () => {
+  const ctx = prepare(sb, { workspace: true })
+  const p1 = page('p1', 'docs/workspace/index.md', 'overview', 'reads-env-vars')
+  ctx.plan({ service: { files: [p1] } }, { workspace: { home: 'service', repos: ['service', 'web', 'infra'] }, approved: true })
+  const review = evidence => {
+    const file = sb.write(join(ctx.root, '.hub-run', 'findings-ws.jsonl'), JSON.stringify(finding(p1.path, evidence)) + '\n')
+    const r = sb.hub(['review', '--repo', 'service', '--in', file, '--round', '1', '--json'], { cwd: ctx.root })
+    assert.ok([0, 1].includes(r.code), r.output)
+    return [r.json().kept, r.json().discarded]
+  }
+  const client = "export const API_BASE = '/api/v1'"
+  assert.deepEqual(review([{ path: 'web/src/client.ts', quote: client }]), [1, 0])
+  assert.deepEqual(review([{ path: 'web:src/client.ts', quote: client }]), [1, 0])
+  assert.deepEqual(review([{ path: 'service/src/config.ts', quote: valid.quote }]), [1, 0])
+  assert.deepEqual(review([{ path: 'web/src/client.ts', quote: "export const API_BASE = '/api/v2'" }]), [0, 1])
+  // An absence is looked for in the repository its pathspec names, not in a folder of that name here.
+  assert.deepEqual(review([{ absence: 'API_BASE', pathspec: 'web/src/' }]), [0, 1])
+  assert.deepEqual(review([{ absence: 'API_BASE', pathspec: 'infra/' }]), [1, 0])
+})
