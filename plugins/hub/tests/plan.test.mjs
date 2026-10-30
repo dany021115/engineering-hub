@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { sandbox } from './helper.mjs'
-import { guardrail, overlay, page, prepare } from './plan-fixture.mjs'
+import { guardrail, overlay, page, prepare, SERVICE_FACTS } from './plan-fixture.mjs'
 
 const sb = sandbox()
 after(() => sb.cleanup())
@@ -190,5 +190,91 @@ describe('verdicts reach the plan (GEN-11)', () => {
     const r = ctx.run()
     assert.equal(r.code, 1)
     assert.match(r.output, /F3/)
+  })
+})
+
+const factOf = (id, kind, evidence, claim = `claim of ${id}`) => ({ type: 'fact', id, kind, claim, evidence })
+const rowOf = (r, id) => r.json().evidence.find(e => e.id === id)
+
+describe('the evidence of each entry (EVI-1)', () => {
+  const CONF = 'docs/reference/configuration.md'
+
+  test('impact order', () => {
+    const ctx = prepare(sb)
+    ctx.plan({ service: { files: [page('p1', CONF, 'reference', 'reads-env-vars', ['F6', 'F1'])] } })
+    const r = ctx.run('--json')
+    const row = rowOf(r, 'p1')
+    assert.deepEqual([row.fact, row.more], ['F1', 1], r.output)
+    assert.equal(row.text, `p1 ${CONF}: quote · .github/workflows/ci.yml:${row.line} · "run: npm test" (+1 more)`)
+  })
+
+  test('no human facts', () => {
+    const ctx = prepare(sb)
+    ctx.appendChecked('service', { type: 'fact', id: 'Q1', kind: 'human', claim: 'Does a merge deploy?', answer: 'no', role: 'maintainer' })
+    ctx.plan({ service: { files: [page('p1', CONF, 'reference', 'reads-env-vars', ['Q1']), page('p2', 'docs/reference/cli.md', 'reference', null, ['Q1', 'F2'])] } })
+    const r = ctx.run('--json')
+    assert.equal(rowOf(r, 'p1').evidence, null)
+    assert.equal(rowOf(r, 'p1').text, `p1 ${CONF}: no evidence`)
+    assert.equal(rowOf(r, 'p2').fact, 'F2')
+  })
+
+  test('labels', () => {
+    const facts = [...SERVICE_FACTS, factOf('F20', 'location', [{ path: 'src/app.ts', quote: 'export function start()' }])]
+    const ctx = prepare(sb, { facts })
+    ctx.appendChecked('service', { ...factOf('F3c', 'gotcha', [{ path: '.github/workflows/ci.yml', quote: 'run: npm ci' }]), corrects: 'F3' })
+    sb.write(join(ctx.root, '.hub-run', 'verdicts', 'service-1.jsonl'), JSON.stringify({ id: 'F1', verdict: 'supported' }) + '\n')
+    ctx.plan({
+      service: {
+        files: [
+          page('p1', CONF, 'reference', 'reads-env-vars', ['F1']),
+          page('p2', 'docs/reference/cli.md', 'reference', null, ['F3c']),
+          page('p3', 'docs/reference/api.md', 'reference', null, ['F20']),
+        ],
+      },
+    })
+    const r = ctx.run('--json')
+    assert.deepEqual(['p1', 'p2', 'p3'].map(id => rowOf(r, id).label), ['verified', 'corrected', 'quote'], r.output)
+  })
+
+  test('absence and cut', () => {
+    const long = `export const banner = '${'x'.repeat(180)}'`
+    const facts = [
+      ...SERVICE_FACTS,
+      factOf('F21', 'negative', [{ absence: 'npm run e2e', pathspec: '.github/workflows/' }]),
+      factOf('F22', 'config', [{ path: 'src/banner.ts', quote: long }]),
+    ]
+    const ctx = prepare(sb, { facts, extra: { service: { 'src/banner.ts': long + '\n' } } })
+    ctx.plan({ service: { files: [page('p1', CONF, 'reference', 'reads-env-vars', ['F21']), page('p2', 'docs/reference/cli.md', 'reference', null, ['F22'])] } })
+    const r = ctx.run('--json')
+    assert.deepEqual([rowOf(r, 'p1').absence, rowOf(r, 'p1').pathspec], ['npm run e2e', '.github/workflows/'], r.output)
+    const quote = rowOf(r, 'p2').quote
+    assert.equal([...quote].length, 120)
+    assert.ok(quote.endsWith('…'))
+    assert.equal(rowOf(r, 'p2').line, 1)
+  })
+})
+
+describe('no quote with a secret reaches the gate (EVI-2)', () => {
+  const secret = ['s3cr', 'et99'].join('')
+  const assignment = ['pass', 'word'].join('') + ` = "${secret}"`
+  const facts = [factOf('F30', 'config', [{ path: 'src/db.ts', quote: assignment }]), ...SERVICE_FACTS]
+  const extra = { service: { 'src/db.ts': `const ${assignment}\n` } }
+
+  test('quote with a secret', () => {
+    const ctx = prepare(sb, { facts, extra })
+    ctx.plan({ service: { files: [page('p1', 'docs/reference/configuration.md', 'reference', 'reads-env-vars', ['F30'])] } })
+    const r = ctx.run('--json')
+    const row = rowOf(r, 'p1')
+    assert.equal(row.withheld, 'a secret assignment', r.output)
+    assert.equal(row.quote, undefined)
+    assert.ok(!r.stdout.includes(secret))
+  })
+
+  test('next clean fact', () => {
+    const ctx = prepare(sb, { facts, extra })
+    ctx.plan({ service: { files: [page('p1', 'docs/reference/configuration.md', 'reference', 'reads-env-vars', ['F30', 'F2'])] } })
+    const r = ctx.run('--json')
+    assert.equal(rowOf(r, 'p1').fact, 'F2', r.output)
+    assert.ok(!r.stdout.includes(secret))
   })
 })

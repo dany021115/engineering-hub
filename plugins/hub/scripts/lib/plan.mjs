@@ -5,6 +5,7 @@ import { parseOptions, result, usage } from './cli.mjs'
 import { readEnv } from './env.mjs'
 import { WORKSPACE } from './evidence.mjs'
 import { checkedFile } from './facts.mjs'
+import { entryEvidence } from './gate-evidence.mjs'
 import { hashObject } from './git.mjs'
 import { readInventory } from './inventory.mjs'
 import { nameMatcher } from './glob.mjs'
@@ -453,6 +454,12 @@ export default function planCommand(argv) {
   }
   const entries = Object.values(plan.repos ?? {}).reduce((n, r) => n + (r.files?.length ?? 0), 0)
   res.data = { plan: path, entries, approved: plan.approved === true }
+  // EVI-1: the checked fact behind each entry, for the P2 text; a site plan has no facts.
+  if (plan.mode !== 'site') {
+    const { rows, warnings } = entryEvidence(root, plan, catalog)
+    res.data.evidence = rows
+    res.warnings.push(...warnings)
+  }
   if (!res.errors.length) res.lines.push(values.approve ? `plan approved: ${path}` : `plan is valid: ${entries} entries`)
   return res
 }
