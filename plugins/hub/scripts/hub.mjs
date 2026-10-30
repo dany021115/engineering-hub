@@ -10,12 +10,13 @@ import impact from './lib/impact.mjs'
 import place from './lib/place.mjs'
 import plan from './lib/plan.mjs'
 import review from './lib/review.mjs'
+import sample from './lib/sample.mjs'
 import scan from './lib/scan.mjs'
 import site from './lib/site.mjs'
 import start from './lib/start.mjs'
 import verdicts from './lib/verdicts.mjs'
 
-const COMMANDS = { start, facts, verdicts, plan, check, review, place, finish, scan, drift, impact, site }
+const COMMANDS = { start, facts, verdicts, plan, check, review, place, finish, sample, scan, drift, impact, site }
 
 const USAGE = `usage: hub.mjs <command> [options] [--json]
 commands: ${Object.keys(COMMANDS).join(', ')}`
