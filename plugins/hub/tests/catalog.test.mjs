@@ -18,6 +18,11 @@ test('caps hold the design values and no area explorers', () => {
   assert.equal('areaExplorersAbove' in catalog.caps, false)
 })
 
+test('the gates cut a shown quote at 120 characters and sample 5 sentences (EVI-7)', () => {
+  assert.equal(catalog.limits.gateQuoteChars, 120)
+  assert.equal(catalog.limits.spotSentences, 5)
+})
+
 test('every skill archetype has its skeleton, budget, minFacts and required sections', () => {
   const expect = {
     'skeletons/skill-working-in.md': [2, ['## Verify like CI', '## Hand-off']],

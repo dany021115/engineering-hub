@@ -16,7 +16,9 @@
     "descriptionMaxChars": 1024,
     "descriptionWarnChars": 500,
     "descriptionWithWhenToUseMaxChars": 1536,
-    "skillBodyMaxLines": 500
+    "skillBodyMaxLines": 500,
+    "gateQuoteChars": 120,
+    "spotSentences": 5
   },
   "skills": {
     "working-in": {
