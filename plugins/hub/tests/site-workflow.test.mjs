@@ -104,3 +104,15 @@ describe('the docs-site.yml offer (SIT-21)', () => {
     assert.match(JSON.stringify(r.json().warnings), /not on GitHub/)
   })
 })
+
+test('Pages deploys only on a push to the default branch with DOCS_DEPLOY set (SIT-22)', () => {
+  const text = readFileSync(new URL('../templates/ci/docs-site.yml', import.meta.url), 'utf8')
+  const gates = text.split('\n').filter(line => line.includes("vars.DOCS_DEPLOY == 'pages'"))
+  assert.equal(gates.length, 2)
+  for (const line of gates) {
+    assert.match(line, /github\.event_name == 'push' && github\.ref == format\('refs\/heads\/\{0\}', github\.event\.repository\.default_branch\)/)
+  }
+  // A run by hand builds the site without deploying it.
+  assert.match(text, /^ {2}workflow_dispatch:$/m)
+  assert.doesNotMatch(text, /event_name != 'pull_request' &&/)
+})

@@ -1,5 +1,6 @@
-# Builds the docs site on pull requests and on pushes to the default branch.
-# Deploys to GitHub Pages only when the repository variable DOCS_DEPLOY is "pages".
+# Builds the docs site on pull requests, on pushes to the default branch and when run by hand.
+# Deploys to GitHub Pages only on a push to the default branch, when the repository variable
+# DOCS_DEPLOY is "pages".
 # Pages sites are public unless the organization has private Pages (GitHub Enterprise Cloud).
 name: docs-site
 
@@ -23,7 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      DEPLOY: ${{ github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.DOCS_DEPLOY == 'pages' }}
+      DEPLOY: ${{ github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.DOCS_DEPLOY == 'pages' }}
     defaults:
       run:
         working-directory: docs-site
@@ -52,7 +53,7 @@ jobs:
 
   deploy:
     needs: build
-    if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.DOCS_DEPLOY == 'pages'
+    if: github.event_name == 'push' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && vars.DOCS_DEPLOY == 'pages'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
