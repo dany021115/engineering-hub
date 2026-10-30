@@ -68,8 +68,9 @@ the folder to start Claude Code in) and stop. Otherwise read `mode`, `root`, `re
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs start --discard --json`; when it is
   `finish --keep none`, run
   `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs finish .hub-run/plan.json --keep none --json`. Then
-  run `start --json` again and go on as a new run. Resume: `verify` goes to step 3, `P2` to the P2
-  gate and `P3` to the P3 gate, with the scope from `.hub-run/scope.json` or the plan.
+  run `start --json` again and go on as a new run. Resume: `verify` goes to step 3, `P2` runs the
+  `plan` call on the existing plan for its `evidence` and goes to the P2 gate, and `P3` to the P3
+  gate, with the scope from `.hub-run/scope.json` or the plan.
 
 ## 1. Prepare the run and find the drift
 
@@ -157,7 +158,9 @@ until it exits 0.
 ## P2. Plan
 
 Show, per repository, a table of the entries (action, path, kind or type, why, number of facts),
-the facts that fell and `estimate.agentRuns`. Then one AskUserQuestion: each plan question,
+and under it the evidence of each entry: the `text` of its row in the `evidence` the `plan` call
+returned, one line per entry exactly as given. Then the facts that fell and
+`estimate.agentRuns`. Then one AskUserQuestion: each plan question,
 options "Leave it out (default)" and "Yes"; and the decision: "Approve", "Change" or "Cancel".
 
 - Cancel: run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs start --discard --json` and stop.

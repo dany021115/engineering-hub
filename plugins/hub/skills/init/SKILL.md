@@ -73,8 +73,9 @@ against `HEAD`).
   undoes what was placed. Then run `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs start --json`
   again and go on as a new run.
 - Resume: `verify` goes to step 3 for the repositories with a `facts/<repo>.jsonl` (no explorer
-  runs again), `P2` goes to the P2 gate with the existing `.hub-run/plan.json`, and `P3` goes to
-  the P3 gate. Take the language and docs home from `.hub-run/scope.json` or the plan.
+  runs again), `P2` runs the `plan` call of step 5 on the existing `.hub-run/plan.json` for its
+  `evidence` and goes to the P2 gate, and `P3` goes to the P3 gate. Take the language and docs
+  home from `.hub-run/scope.json` or the plan.
 
 ## 1. Prepare the run
 
@@ -180,8 +181,11 @@ offers, entries a re-init must `update` or `propose`).
 ## P2. Plan
 
 Show, per repository, a table of the entries (action, path, kind or type, why, number of facts),
-the rejected ideas with their reason, the facts that fell (rejected citations, over the cap, not
-supported by a verifier) and `estimate.agentRuns`. Then one AskUserQuestion: each plan question
+and under it the evidence of each entry: the `text` of its row in the `evidence` the `plan` call
+returned, one line per entry exactly as given, so the person sees the checked quote an entry
+rests on and where to open it. Then the rejected ideas with their reason, the facts that fell
+(rejected citations, over the cap, not supported by a verifier) and `estimate.agentRuns`. Then
+one AskUserQuestion: each plan question
 (at most 3), options "Leave it out (default)" and "Yes"; and the decision: "Approve", "Change" or
 "Cancel".
 
