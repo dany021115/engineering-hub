@@ -11,6 +11,10 @@ half is stale, so one wrong sentence discredits the ones around it.
 
 ## Find the pages a change touches
 
+- **Map the change before writing it.** If the repo has `.claude/hub.lock.json`, run
+  `node ${CLAUDE_PLUGIN_ROOT}/scripts/hub.mjs impact --repo <repo> --paths <the files you will touch>`.
+  It only reads, and lists the pages and skills that cite those files, the ones in other repos
+  included, the sections to read before changing them, and the checks to run.
 - **Start from the lock.** If the repo has `.claude/hub.lock.json`, find every entry under
   `files` whose `sources` include a file you change (a folder source ending in `/` covers the
   files inside it; a source written `<repo>:<path>` is a file of that sibling repo). Each such
