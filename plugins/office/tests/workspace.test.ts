@@ -725,6 +725,48 @@ test('undelivered send: resuming a paused agent that cannot be reached keeps it 
   expect(await ui.find({ key: 'play-agent1' })).toBeDefined()
 })
 
+test('undelivered send from the log: the paused agent stays paused and the toast says why', async ($, on) => {
+  on('tool.call', { tool: 'TaskStop' }, () => ({ result: 'stopped' }) as never)
+  on('session.send', () => ({ isDelivered: false, reason: 'gone' }))
+  const { kit, ui } = await withHire($, on)
+  await ui.press({ key: 'pause-agent1' })
+  kit.statuses.agent1 = 'killed'
+  await $.tool.call({ tool: 'mcp__office__roster' })
+  await ui.press({ key: 'log-agent1' })
+  await ui.input({ key: 'message', text: 'Also check the web docs' })
+  expect(kit.toasts).toContain('Could not send to service-1: gone')
+  expect(kit.toasts).not.toContain('Sent to service-1')
+  await ui.press({ key: 'back-bottom' })
+  expect(await ui.find({ key: 'play-agent1' })).toBeDefined()
+})
+
+test('pause: an agent paused on purpose is not announced as finished, even when its turn ends during the stop', async ($, on) => {
+  let hired: Awaited<ReturnType<typeof withHire>> | undefined
+  on('tool.call', { tool: 'TaskStop' }, async () => {
+    if (hired) hired.kit.statuses.agent1 = 'killed'
+    await $.tool.call({ tool: 'mcp__office__roster' })
+    return { result: 'stopped' } as never
+  })
+  hired = await withHire($, on)
+  const { kit, ui } = hired
+  await ui.press({ key: 'pause-agent1' })
+  await $.tool.call({ tool: 'mcp__office__roster' })
+  expect(kit.toasts).toContain('service-1 paused')
+  expect(kit.toasts.filter(toast => toast.includes('finished'))).toEqual([])
+})
+
+test('refused share: an answer the engine denies is not reported as in the chat', async ($, on) => {
+  on('session.append', () => ({ deny: 'filtered' }))
+  on('turn.complete', (_$, e) => ({ text: e.answer }))
+  const { kit, ui } = await withHire($, on)
+  kit.statuses.agent1 = 'completed'
+  await $.turn.complete({ agentId: 'agent1', durationMs: 1, turnId: 't1', reason: 'answer', answer: 'It serves the public API.', isAborted: false })
+  await ui.press({ key: 'log-agent1' })
+  await ui.press({ key: 'share' })
+  expect(kit.toasts).toContain("Could not share service-1's answer: filtered")
+  expect(kit.toasts).not.toContain("service-1's answer is in the chat")
+})
+
 test('refused question: a denied append registers nothing and toasts why', async ($, on) => {
   on('session.append', () => ({ deny: 'filtered' }))
   const { kit, ui } = await withHire($, on)

@@ -72,6 +72,9 @@ const isolation = atom({ plugin: 'office', key: 'isolation' } as const, false)
 const nextIsolated = atom({ plugin: 'office', key: 'nextIsolated' } as const, false)
 const worktrees = atom({ plugin: 'office', key: 'worktrees' } as const, {})
 
+// Agents whose TaskStop is running for a pause: their turn ends then, which is not a finish.
+const pausing = new Set<string>()
+
 type Input = Record<string, unknown>
 
 const field = (input: Input, key: string) => String(input[key] ?? '').trim()
@@ -84,12 +87,14 @@ async function refreshWorkers($: EngineInterface) {
   if (JSON.stringify(current) === JSON.stringify(merged)) return merged
 
   await update($, workers, () => merged)
+  const held = await read($, paused)
   const finished = merged.filter(
     worker => !isLive(worker) && current.some(before => before.id === worker.id && isLive(before)),
   )
   for (const worker of finished) {
     await recordHandback($, worker.id)
     await syncChanges($, worker.id)
+    if (pausing.has(worker.id) || held.includes(worker.id)) continue
     await $.ui.toast(`${worker.label} finished: open Log to read the answer`)
   }
   return merged
@@ -440,8 +445,13 @@ async function stopTask($: EngineInterface, worker: Worker) {
 }
 
 async function pause($: EngineInterface, worker: Worker) {
-  if (!(await stopTask($, worker))) return
-  await update($, paused, ids => [...ids.filter(id => id !== worker.id), worker.id])
+  pausing.add(worker.id)
+  try {
+    if (!(await stopTask($, worker))) return
+    await update($, paused, ids => [...ids.filter(id => id !== worker.id), worker.id])
+  } finally {
+    pausing.delete(worker.id)
+  }
   await $.ui.toast(`${worker.label} paused`)
 }
 
@@ -648,9 +658,12 @@ async function renderPane($: EngineInterface, elements: Elements, viewport?: Vie
 
 async function message($: EngineInterface, worker: Worker, text: string) {
   if (!text.trim()) return
+  const sent = await $.session
+    .send({ to: { agentId: worker.id }, text: text.trim() })
+    .catch((error: unknown) => ({ isDelivered: false as const, reason: String(error) }))
+  if (!sent.isDelivered) return $.ui.toast(`Could not send to ${worker.label}: ${sent.reason}`)
   await update($, paused, ids => ids.filter(id => id !== worker.id))
   await update($, answers, ({ [worker.id]: _answer, ...rest }) => rest)
-  await $.session.send({ to: { agentId: worker.id }, text: text.trim() })
   await scrollToEnd($, PANE)
   await scrollToEnd($, detailPaneId(worker.id))
   await $.ui.toast(`Sent to ${worker.label}`)
@@ -658,8 +671,13 @@ async function message($: EngineInterface, worker: Worker, text: string) {
 
 async function shareAnswer($: EngineInterface, worker: Worker, answer: string) {
   const text = sharedAnswer(worker.label, worker.task, answer)
-  await $.session.append({ message: { type: 'user', content: [{ type: 'text', text }] } })
-  await $.session.append({ message: { type: 'system', content: [{ type: 'text', text }] } })
+  const why =
+    (await deliver($, LEAD, text)) ??
+    (await $.session
+      .append({ message: { type: 'system', content: [{ type: 'text', text }] } })
+      .then(stored => stored.deny)
+      .catch((error: unknown) => String(error)))
+  if (why !== undefined) return $.ui.toast(`Could not share ${worker.label}'s answer: ${why}`)
   await $.ui.toast(`${worker.label}'s answer is in the chat`)
 }
 

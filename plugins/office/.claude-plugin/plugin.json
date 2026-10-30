@@ -1,6 +1,6 @@
 {
   "name": "office",
-  "version": "0.17.1",
+  "version": "0.17.2",
   "description": "An office of subagents that share a board, ask each other questions and delegate, briefed on the workspace's repos, docs and skills",
   "author": {
     "name": "engineering-hub"
