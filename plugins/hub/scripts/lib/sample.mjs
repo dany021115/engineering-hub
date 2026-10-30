@@ -18,7 +18,8 @@ const sha1 = text => createHash('sha1').update(text).digest('hex')
 const flat = text => text.replace(/\s+/g, ' ').trim()
 
 // The checkable sentences of a Markdown text: prose outside frontmatter, headings, fences and
-// tables, with list and step markers taken off; `only` keeps the given line numbers.
+// tables, with list and step markers taken off; `only` keeps the given line numbers. A sentence
+// that ends in a colon only leads into a list and states nothing.
 export function sentences(text, only = null) {
   const fm = splitFrontmatter(text)
   const out = []
@@ -27,7 +28,7 @@ export function sentences(text, only = null) {
     if (!l.text.trim() || HEADING.test(l.text) || TABLE.test(l.text)) continue
     for (const s of l.text.replace(MARKER, '').trim().split(SENTENCE)) {
       const t = s.trim()
-      if (t.split(/\s+/).length >= 4) out.push({ line: l.n, text: t })
+      if (t.split(/\s+/).length >= 4 && !/:[*_]*$/.test(t)) out.push({ line: l.n, text: t })
     }
   }
   return out

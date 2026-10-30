@@ -42,6 +42,7 @@ describe('a stable sample of placed sentences (EVI-4)', () => {
       ['## Table', '| Setting name here | Read where here |\n|---|---|\n| the database url value | in the config file |'],
       ['## Commands', '```bash\nnpm run lint --fix everything now\n```'],
       ['## Notes', `- A list item with enough words.\n${LOCK_LINE}`],
+      ['## Where to start', 'Read these pages and files first:\n\n- The configuration reference lists every setting.'],
     ])
     const run = approvedRun(sb, [s1(), p1()], { texts: { [CONFIG]: text } })
     assert.equal(run.place().code, 0)
@@ -49,8 +50,9 @@ describe('a stable sample of placed sentences (EVI-4)', () => {
     assert.equal(r.code, 0, r.output)
     const texts = itemsOf(r).map(i => i.text)
     assert.ok(texts.includes('A list item with enough words.'), r.output)
+    assert.ok(texts.includes('The configuration reference lists every setting.'), r.output)
     for (const t of texts) {
-      assert.doesNotMatch(t, /^#|^\||^- |npm run lint|Setting name here|database url value|^name:|^description:|Use before editing, testing or committing|The lock is the reverse index/)
+      assert.doesNotMatch(t, /^#|^\||^- |npm run lint|Setting name here|database url value|^name:|^description:|Use before editing, testing or committing|The lock is the reverse index|first:$/)
     }
   })
 
