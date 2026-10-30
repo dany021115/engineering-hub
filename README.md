@@ -28,11 +28,11 @@ Or in one line: `claude plugin install hub --marketplace <owner>/engineering-hub
 Start Claude Code at the top of a repository, or in the folder that holds several repositories side by side, and run `/hub:init` (or `/hub:init <repo> …` to choose repositories in a workspace). It:
 
 1. takes an inventory of each repository: languages, docs, instruction files, skills, CI, leaving out vendored or generated code (marked in `.gitattributes`, or in folders such as `vendor/` and `third_party/` that GitHub treats as vendored) and submodules;
-2. sends one explorer per repository to collect facts, each citing a file and line;
+2. sends one explorer per repository to collect facts, each citing a file and a quote from it;
 3. checks every citation against `HEAD` and has independent verifiers confirm the facts that matter most;
-4. proposes a plan, which you approve at the second of three gates;
+4. proposes a plan, which you approve at the second of three gates. Under the plan, each entry shows one quote from its facts, with its file, its line when the quote appears once, and whether a verifier confirmed it, or says that it has no evidence; a quote that looks like a secret or a personal path is held back;
 5. writes the files in a staging folder, runs the gates (skill lint, docs structure, grounding, confinement, traces and secrets, `claude plugin validate`) and a clean reviewer, which also flags a procedure skill that repeats its how-to page; in the last round, a sentence the reviewer finds false is taken out rather than its whole file, unless it is a numbered step, a heading or part of a longer paragraph;
-6. places the approved files, shows what was placed and what was dropped and why, and asks, at the third gate, what to keep. A dropped page takes with it whatever still links to it or names it, except an index, which only loses the list lines and sentences that link to it.
+6. places the approved files, shows what was placed and what was dropped and why, and asks, at the third gate, what to keep. It first shows up to five placed sentences, the same ones each time in a run, each with the files to read it against, and asks whether they matched the code: a sentence that did not is left out with its file, or fixed by hand afterwards. The answer is kept in `.hub-run/done.json`, without your name. A dropped page takes with it whatever still links to it or names it, except an index, which only loses the list lines and sentences that link to it.
 
 Above 12 agent runs it shows the estimate and asks first. While a run is open, the plugin's hook lets each lone call to its `hub.mjs` script, and the two read-only `git` commands of the result step, run without a prompt, and lets the run's agents only read: Read, Grep and Glob, or read-only shell commands such as `grep`, `find` and `git ls-files` where Grep and Glob are missing. An agent's Read, Grep or Glob outside the session's folder is refused at once, rather than raising a prompt that would stall the run. It never commits or pushes: review the diff (`git status`, `git diff`) and commit it yourself, on a branch of your choice.
 
@@ -70,18 +70,22 @@ In each chosen repository, and only what the approved plan lists:
 | `docs/` | Markdown pages: an index, and architecture and how-to pages when the code calls for them. An existing docs folder is used; when it holds HTML, pages go to `documentation/` |
 | `.claude/hub.lock.json` | What was generated and from which commit, so a later run can tell what is out of date and what was edited by hand |
 | `docs-site/` | The docs site, only after `/hub:site` |
-| `.hub-run/` | The run's scratch folder, which ignores itself; a finished run is cleared by the next one |
+| `.hub-run/` | The run's scratch folder, which ignores itself: the plan, the sampled sentences (`sample.json`) and the result (`done.json`); a finished run is cleared by the next one |
 
 Pages that span repositories go to the docs home you choose. Changes to files a person wrote, such as a line in `CLAUDE.md` or `AGENTS.md`, team settings in `.claude/settings.json` or a `hub-check.yml` workflow, are only offered, and applied only if you pick them at the third gate.
 
-To see what is out of date without changing anything, run `node <hub plugin>/scripts/hub.mjs drift --repo .` in a repository with a lock. It lists the generated files edited by hand, deleted, or whose sources changed since they were written, new CI, manifest, contract, data or deploy files and new environment variables, and whether the installed generator is newer. It always exits 0; `--since <ref>` limits it to what that range changed, and `--annotate` prints GitHub warnings. With `--advance` it moves the lock's `documentedCommit` to `HEAD`, changing nothing else, but only when no generated file is affected. A generated file you delete is never recreated: once you confirm the deletion it leaves the lock. A refresh moves `documentedCommit` only when every affected file was updated, accepted or let go.
+To see what is out of date without changing anything, run `node <hub plugin>/scripts/hub.mjs drift --repo .` in a repository with a lock. It lists the generated files edited by hand, deleted, or whose sources changed since they were written, new CI, manifest, contract, data or deploy files and new environment variables, and whether the installed generator is newer. In a workspace member it also lists the docs home's pages that cite the member's files, and it names any related repository that is not checked out next to it, since that one was not checked. It always exits 0. `--annotate` prints a GitHub warning for each affected file. `--since <ref>` lists apart the generated files whose sources that range changed, a renamed file counting under both names, and limits the annotations to them; one that the range updated too gets a notice to check it instead of a warning. With `--advance` it moves the lock's `documentedCommit` to `HEAD`, changing nothing else, but only when no generated file is affected. A generated file you delete is never recreated: once you confirm the deletion it leaves the lock. A refresh moves `documentedCommit` only when every affected file was updated, accepted or let go.
+
+To map a change before making it, run `node <hub plugin>/scripts/hub.mjs impact --repo .`. For each changed file in the working tree, or each path given with `--paths`, it lists the generated skills and pages that cite it, in this repository and in the related ones checked out next to it, with whether each is up to date and the sections to read first; then how the repository's CI verifies a change and the owners from `CODEOWNERS`. It only reads and always exits 0; the `docs-with-code` skill runs it before a change.
+
+`<hub plugin>` is the `plugins/hub` folder of this template. To run the script from a terminal, clone the template at the `hub--v<version>` tag, `<version>` being the lock's `generator` without `hub@`, as `hub-check.yml` does: `git clone --depth 1 --branch hub--v<version> <template URL>`. Or ask Claude, in a session where `hub` is loaded, for the exact command.
 
 ## Generic skills
 
 The plugin brings four skills that work in any repository, single or in a workspace:
 
 - **`how-we-work`**: find and follow the repository's commit, branch and pull-request conventions.
-- **`docs-with-code`**: keep documentation in step with the code.
+- **`docs-with-code`**: keep documentation in step with the code, starting from the `impact` map of the change.
 - **`cross-repo-seams`**: recognise a contract another repository relies on, and land both sides in a safe order.
 - **`reviewing-changes`**: what a bug-focused review misses: docs, seams and conventions.
 
@@ -148,6 +152,10 @@ To see whether a generated skill earns its place, measure it in a throwaway copy
 3. **Effect:** wrap the skill in a temporary plugin with a few behaviour cases and compare with and without it: `claude plugin eval <wrapper> --no-publish`. Read `aggregates.delta` in the JSON (`--json`); a delta of zero with the skill firing means its body adds nothing.
 
 Always pass `--no-publish`: without it, eval publishes its report when your account supports it.
+
+## Measuring the generated text
+
+The third gate's spot check is a small measure of how often the generated sentences match the code. To add it up over time, copy the `spot` field of `.hub-run/done.json` after each run, before the next run clears the folder, and sum `sampled` and the length of `mismatched`. For a larger sample at once, in a throwaway copy, run `node <hub plugin>/scripts/hub.mjs sample .hub-run/plan.json --n 30` while the third gate is open, before `finish`, and check the thirty sentences against the code by hand.
 
 ## Development
 
