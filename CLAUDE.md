@@ -21,7 +21,7 @@ or `.claude/hub.lock.json` appears at the root.
 
 | Path | What |
 |---|---|
-| `plugins/hub/skills/` | The commands (`init`, `refresh`, `site`) and the generic skills |
+| `plugins/hub/skills/` | The commands (`init`, `refresh`, `site`, `learn`) and the generic skills |
 | `plugins/hub/generator/` | What a run's agents read: the catalog, the briefs, the skeletons, the style guide |
 | `plugins/hub/templates/` | What the script copies into a project: the docs site and the CI workflows |
 | `plugins/hub/scripts/` | The deterministic part: `hub.mjs` and one module per job in `lib/` |
