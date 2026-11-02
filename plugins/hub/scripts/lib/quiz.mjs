@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { loadCatalog } from './catalog.mjs'
 import { parseOptions, result, usage } from './cli.mjs'
 import { lsFiles } from './git.mjs'
-import { classify, codeSpans, headings, isPathLike, isPlaceholder, splitFrontmatter } from './markdown.mjs'
+import { classify, codeSpans, headings, isPathLike, splitFrontmatter } from './markdown.mjs'
 import { checkedSpan, freshnessOf, lockedRepo, underArea } from './route.mjs'
 import { fixedSentences, sentences } from './sample.mjs'
 
@@ -26,7 +26,8 @@ function clozeOf(sentence, allowed) {
   return { kind: 'cloze', text: text.replace(written, '____'), answer: spans[0] }
 }
 
-// The rows of tables whose second column says where a name is read, as the reference skeleton writes it.
+// The rows of tables whose second column says where a name is read, as the reference skeleton writes
+// it. The name is one the grounding gate checks: a plain key such as `service` may be set, not read.
 function whereOf(lines, known) {
   const out = []
   let inTable = false
@@ -37,7 +38,7 @@ function whereOf(lines, known) {
     else if (inTable) {
       const name = CELL.exec(cells[0] ?? '')?.[1]
       const file = CELL.exec(cells[1] ?? '')?.[1]
-      if (name && file && !isPlaceholder(name) && (isPathLike(file) || known.has(file))) {
+      if (name && file && checkedSpan(name) && (isPathLike(file) || known.has(file))) {
         out.push({ line: l.n, kind: 'where', text: `Which file reads \`${name}\`?`, answer: file })
       }
     }

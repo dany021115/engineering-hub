@@ -17,7 +17,7 @@ const json = (dir, ...flags) => {
   assert.equal(r.code, 0, r.output)
   return r.json()
 }
-const REF_TABLE = '| Name | Where it is read | What it controls |\n|---|---|---|\n| `DB_URL` | `src/config.ts` | The database URL. |\n| `<name>` | `src/config.ts` | A placeholder row. |'
+const REF_TABLE = '| Name | Where it is read | What it controls |\n|---|---|---|\n| `DB_URL` | `src/config.ts` | The database URL. |\n| `<name>` | `src/config.ts` | A placeholder row. |\n| `service` | `deploy/app.yaml` | A plain key that the file sets. |'
 const page = text => ({ texts: { service: { [CONFIG]: text } } })
 
 describe('a read-only subcommand (QUI-1)', () => {
