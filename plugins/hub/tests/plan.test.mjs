@@ -196,8 +196,38 @@ describe('verdicts reach the plan (GEN-11)', () => {
 const factOf = (id, kind, evidence, claim = `claim of ${id}`) => ({ type: 'fact', id, kind, claim, evidence })
 const rowOf = (r, id) => r.json().evidence.find(e => e.id === id)
 
+// A batch of verdicts through the command, as a run records them.
+const rule = (ctx, repo, verdicts) => {
+  const file = sb.write(join(ctx.root, '.hub-run', 'verdicts', `${repo}-1.jsonl`), verdicts.map(v => JSON.stringify(v) + '\n').join(''))
+  return sb.hub(['verdicts', '--repo', repo, '--in', file], { cwd: ctx.root })
+}
+
 describe('the evidence of each entry (EVI-1)', () => {
   const CONF = 'docs/reference/configuration.md'
+
+  test('a label follows the repository of its fact, since each one numbers from F1', () => {
+    const webFact = factOf('F1', 'config', [{ path: 'src/client.ts', quote: "export const API_BASE = '/api/v1'" }])
+    const labelWith = (verdicts) => {
+      const ctx = prepare(sb, { workspace: true })
+      sb.write(join(ctx.root, '.hub-run', 'facts', 'web.jsonl'), JSON.stringify(webFact) + '\n')
+      assert.equal(sb.hub(['facts', '--repo', 'web'], { cwd: ctx.root }).code, 0)
+      for (const [repo, list] of Object.entries(verdicts)) assert.equal(rule(ctx, repo, list).code, 0)
+      ctx.plan({ service: { files: [page('p1', CONF, 'reference', 'reads-env-vars', ['F1'])] } }, { workspace: { home: 'service', repos: ['service', 'web', 'infra'] } })
+      return rowOf(ctx.run('--json'), 'p1').label
+    }
+    assert.equal(labelWith({ service: [{ id: 'F1', verdict: 'supported' }], web: [{ id: 'F1', verdict: 'not-found' }] }), 'verified')
+    assert.equal(labelWith({ web: [{ id: 'F1', verdict: 'supported' }] }), 'quote')
+  })
+
+  test('evidence that cannot be read leaves the answer about the plan whole', () => {
+    const lock = { schema: 1, generator: 'hub@0.1.0', documentedCommit: '0'.repeat(40), settings: { language: 'en', docsDir: 'docs', scanAllow: 'x' }, files: {} }
+    const ctx = prepare(sb, { extra: { service: { '.claude/hub.lock.json': JSON.stringify(lock) + '\n' } } })
+    ctx.plan({ service: { files: [page('p1', CONF, 'reference', 'reads-env-vars', ['F2'])] } })
+    const r = ctx.run('--json')
+    assert.equal(r.code, 0, r.output)
+    assert.deepEqual([r.json().entries, r.json().approved, r.json().evidence], [1, false, []])
+    assert.match(JSON.stringify(r.json().warnings), /the evidence of the entries could not be read/)
+  })
 
   test('impact order', () => {
     const ctx = prepare(sb)
@@ -222,7 +252,7 @@ describe('the evidence of each entry (EVI-1)', () => {
     const facts = [...SERVICE_FACTS, factOf('F20', 'location', [{ path: 'src/app.ts', quote: 'export function start()' }])]
     const ctx = prepare(sb, { facts })
     ctx.appendChecked('service', { ...factOf('F3c', 'gotcha', [{ path: '.github/workflows/ci.yml', quote: 'run: npm ci' }]), corrects: 'F3' })
-    sb.write(join(ctx.root, '.hub-run', 'verdicts', 'service-1.jsonl'), JSON.stringify({ id: 'F1', verdict: 'supported' }) + '\n')
+    assert.equal(rule(ctx, 'service', [{ id: 'F1', verdict: 'supported' }]).code, 0)
     ctx.plan({
       service: {
         files: [
@@ -268,6 +298,24 @@ describe('no quote with a secret reaches the gate (EVI-2)', () => {
     assert.equal(row.withheld, 'a secret assignment', r.output)
     assert.equal(row.quote, undefined)
     assert.ok(!r.stdout.includes(secret))
+  })
+
+  test('an absence with the secret is withheld too', () => {
+    const away = factOf('F31', 'negative', [{ absence: assignment, pathspec: '.github/workflows/' }])
+    const ctx = prepare(sb, { facts: [...facts, away], extra })
+    ctx.plan({ service: { files: [page('p1', 'docs/reference/configuration.md', 'reference', 'reads-env-vars', ['F31'])] } })
+    const r = ctx.run('--json')
+    assert.equal(rowOf(r, 'p1').withheld, 'a secret assignment', r.output)
+    assert.equal(rowOf(r, 'p1').path, '.github/workflows/')
+    assert.ok(!r.stdout.includes(secret))
+  })
+
+  test('a withheld quote keeps the repository it names', () => {
+    const ctx = prepare(sb, { workspace: true })
+    ctx.appendChecked('service', factOf('F32', 'config', [{ path: 'web:src/db.ts', quote: assignment }]))
+    ctx.plan({ service: { files: [page('p1', 'docs/reference/configuration.md', 'reference', 'reads-env-vars', ['F32'])] } }, { workspace: { home: 'service', repos: ['service', 'web', 'infra'] } })
+    const r = ctx.run('--json')
+    assert.deepEqual([rowOf(r, 'p1').path, rowOf(r, 'p1').withheld], ['web:src/db.ts', 'a secret assignment'], r.output)
   })
 
   test('next clean fact', () => {

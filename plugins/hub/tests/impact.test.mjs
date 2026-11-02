@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, utimesSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
+import { covers } from '../scripts/lib/drift.mjs'
 import { readFirstHeadings } from '../scripts/lib/impact.mjs'
 import { sandbox } from './helper.mjs'
 import { cloneAlone, CONFIG, INTERFACES, lockedWorkspace, SERVICE_SKILL, WEB_SKILL } from './workspace-fixture.mjs'
@@ -157,4 +158,56 @@ test('the owners by path, never by name (IMP-5)', () => {
   r = impact(w.service, '--paths', 'src/config.ts')
   assert.match(r.stdout, /^owners: see \.github\/CODEOWNERS$/m)
   assert.ok(!r.stdout.includes(handle) && !r.stderr.includes(handle))
+})
+
+describe('what verify found (IMP-1, IMP-2, IMP-4)', () => {
+  test('a subfolder of a repository is that repository', () => {
+    const w = ws()
+    const r = impact(join(w.service, 'src'), '--paths', 'src/config.ts', '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.deepEqual(filesOf(r, 'src/config.ts').map(f => f.path), [CONFIG])
+  })
+
+  test('a folder holding no repository is not inside one', () => {
+    const r = impact(sb.path(`imp-${++n}-empty`).replace(/$/, ''), '--json')
+    assert.equal(r.code, 2)
+  })
+
+  test('the working tree form leaves the git index alone', () => {
+    const w = ws()
+    const index = join(w.service, '.git', 'index')
+    utimesSync(join(w.service, 'src/config.ts'), new Date(), new Date(Date.now() + 60000))
+    const before = readFileSync(index)
+    assert.equal(impact(w.service).code, 0)
+    assert.ok(before.equals(readFileSync(index)))
+  })
+
+  test('a generated file that is now a folder is missing', () => {
+    const w = ws()
+    rmSync(join(w.service, CONFIG))
+    sb.write(join(w.service, CONFIG, 'x.md'), 'x\n')
+    const r = impact(w.service, '--paths', 'src/config.ts', '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.equal(filesOf(r, 'src/config.ts')[0].state, 'missing')
+  })
+
+  test('without a Verify like CI section, the CI workflows', () => {
+    const translated = readFileSync(join(ws().service, SERVICE_SKILL), 'utf8').replace('## Verify like CI', '## Verificar como la CI')
+    const w = ws({ texts: { service: { [SERVICE_SKILL]: translated } } })
+    const r = impact(w.service, '--paths', 'src/new.ts', '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.deepEqual([r.json().verifyFrom, r.json().verify], ['CI workflows', ['.github/workflows/ci.yml']])
+    assert.match(impact(w.service, '--paths', 'src/new.ts').stdout, /not covered: run every CI workflow/)
+  })
+
+  test('a name every object inherits is not a generated file', () => {
+    const r = impact(ws().service, '--paths', 'constructor', '--json')
+    assert.equal(r.json().paths[0].generated, false)
+  })
+
+  test('a source key with ./ covers its files', () => {
+    assert.equal(covers('./deploy/', 'deploy/app.yaml'), true)
+    assert.equal(covers('./src/config.ts', 'src/config.ts'), true)
+    assert.equal(covers('deploy/', 'other/app.yaml'), false)
+  })
 })

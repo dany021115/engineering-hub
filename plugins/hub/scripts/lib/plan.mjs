@@ -456,9 +456,13 @@ export default function planCommand(argv) {
   res.data = { plan: path, entries, approved: plan.approved === true }
   // EVI-1: the checked fact behind each entry, for the P2 text; a site plan has no facts.
   if (plan.mode !== 'site') {
-    const { rows, warnings } = entryEvidence(root, plan, catalog)
-    res.data.evidence = rows
-    res.warnings.push(...warnings)
+    // What the plan says comes first: evidence that cannot be read never takes it away.
+    try {
+      res.data.evidence = entryEvidence(root, plan, catalog)
+    } catch (err) {
+      res.data.evidence = []
+      res.warnings.push({ message: `the evidence of the entries could not be read: ${err.message}` })
+    }
   }
   if (!res.errors.length) res.lines.push(values.approve ? `plan approved: ${path}` : `plan is valid: ${entries} entries`)
   return res

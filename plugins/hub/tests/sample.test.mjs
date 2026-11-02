@@ -64,6 +64,17 @@ describe('a stable sample of placed sentences (EVI-4)', () => {
     assert.equal(isFixed('**Run `npm test` before a push.** The workflow runs it on every pull request.'), false)
   })
 
+  test('open names what the sentence names, the root files and the placed ones too', () => {
+    const text = pageText('Configuration', [['## Settings', 'The test script is declared in `package.json` at the root.\n\nThe tests page is `docs/how-to/run-tests.md` in this repository.\n\nThe workflows live in `.github/workflows/` at the top level.']])
+    const run = approvedRun(sb, [s1(), p1(), p2()], { texts: { [CONFIG]: text } })
+    assert.equal(run.place().code, 0)
+    const items = itemsOf(sample(run, '--n', '30'))
+    const openOf = start => items.find(i => i.text.startsWith(start)).open
+    assert.deepEqual(openOf('The test script'), ['package.json'])
+    assert.deepEqual(openOf('The tests page'), ['docs/how-to/run-tests.md'])
+    assert.deepEqual(openOf('The workflows'), ['.github/workflows/'])
+  })
+
   test('refresh', () => {
     const added = 'The service also reads its port number here.'
     const run = approvedRun(sb, [p1({ action: 'update' })], { extra: lockedExtra(), texts: { [CONFIG]: `${configText}\n${added}\n` } })

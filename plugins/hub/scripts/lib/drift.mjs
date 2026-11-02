@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { loadCatalog } from './catalog.mjs'
 import { parseOptions, result, usage } from './cli.mjs'
@@ -34,12 +34,16 @@ function changedSince(dir, ref) {
 }
 
 // A lock source key covers a path when it names it, or names a folder that holds it.
-export const covers = (key, path) => key === path || (key.endsWith('/') && path.startsWith(key))
+export function covers(key, path) {
+  const k = key.replace(/^(\.\/)+/, '')
+  return k === path || (k.endsWith('/') && path.startsWith(k))
+}
 
 // What drift knows of one lock entry: gone, edited by hand, or citing sources that moved or that
 // it cannot see. Shared with impact.
 export function entryState(dir, path, entry) {
-  const missing = !existsSync(join(dir, path))
+  const file = join(dir, path)
+  const missing = !existsSync(file) || !statSync(file).isFile()
   const edited = !missing && hashObject(dir, path) !== entry.hash
   const affected = []
   const unknown = []
@@ -64,8 +68,7 @@ function relatedReport(dir, lock, repo, related, warnings) {
           ? 'its pages that cite this repository were'
           : owned
             ? `${owned} source${owned === 1 ? '' : 's'} of this repository's generated files ${owned === 1 ? 'was' : 'were'}`
-            : null
-      if (!what) continue
+            : 'its generated files were'
       warnings.push({ repo, message: `${r.name} is not next to this repository, so ${what} not checked` })
       absent.push(`${r.name} is not checked out next to this repository; ${what} not checked`)
     }

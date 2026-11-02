@@ -67,7 +67,9 @@ export function treeState(root, { plan = null, catalog, language, mode, repo = n
       return []
     }
   }
-  const absent = [...new Set(named.filter(n => dirs[n]).flatMap(relatedOf))].filter(n => isRepoName(n) && !dirs[n])
+  // A repo on disk that this run's root does not hold is not absent: what cites it still fails.
+  const isAway = (name, n) => isRepoName(n) && !dirs[n] && !existsSync(join(dirname(dirs[name]), n, '.git'))
+  const absent = [...new Set(named.filter(n => dirs[n]).flatMap(name => relatedOf(name).filter(n => isAway(name, n))))]
   const repos = {}
   const view = name => {
     if (repos[name]) return repos[name]

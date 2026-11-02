@@ -1,31 +1,13 @@
 // EVI-1, EVI-2: the checked fact that backs each plan entry, shown at P2 so the person sees what
 // an entry rests on. A quote that the scanner flags never reaches the gate.
-import { existsSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
 import { normalize } from './evidence.mjs'
 import { showHead } from './git.mjs'
-import { readJsonl } from './jsonl.mjs'
 import { readLock } from './lock.mjs'
-import { runDir } from './paths.mjs'
 import { factIndex } from './plan.mjs'
 import { historyNames, makeScanner } from './scan.mjs'
 import { repoDirs } from './workspace.mjs'
 
 const SIBLING = /^([A-Za-z0-9._-]+):(.+)$/
-
-// Each fact id the verifiers ruled on, with the verdict the orchestrator recorded.
-function readVerdicts(root) {
-  const dir = join(runDir(root), 'verdicts')
-  const out = new Map()
-  const warnings = []
-  if (!existsSync(dir)) return { verdicts: out, warnings }
-  for (const name of readdirSync(dir).filter(n => n.endsWith('.jsonl'))) {
-    const { items, bad } = readJsonl(join(dir, name))
-    if (bad.length) warnings.push({ message: `verdicts/${name} line ${bad[0].line} could not be read, so its facts show as quoted only` })
-    for (const v of items) if (v && typeof v.id === 'string') out.set(v.id, v.verdict)
-  }
-  return { verdicts: out, warnings }
-}
 
 // A quote cut to `max` code points, spaces normalized, with an ellipsis when cut.
 export function cutQuote(quote, max) {
@@ -46,7 +28,6 @@ const findingKind = message => message.replace(/^line \d+: /, '').split(':')[0]
 
 export function entryEvidence(root, plan, catalog) {
   const dirs = repoDirs(root)
-  const { verdicts, warnings } = readVerdicts(root)
   const scanners = new Map()
   const scannerOf = repo => {
     if (!scanners.has(repo)) {
@@ -60,7 +41,13 @@ export function entryEvidence(root, plan, catalog) {
     return m && dirs[m[1]] ? { repo: m[1], path: m[2] } : { repo, path: value }
   }
   const labelOf = fact =>
-    fact.corrects ? 'corrected' : catalog.verifiedKinds.includes(fact.kind) && verdicts.get(fact.id) === 'supported' ? 'verified' : 'quote'
+    fact.corrects ? 'corrected' : catalog.verifiedKinds.includes(fact.kind) && fact.verified ? 'verified' : 'quote'
+
+  // What the scanner marks in a text, as the reason a row gives, or null when it is clean.
+  const flaggedIn = (text, at) => {
+    const flagged = scannerOf(at.repo)(text, at.path).filter(x => x.severity !== 'warning')
+    return flagged.length ? [...new Set(flagged.map(x => findingKind(x.message)))].join(', ') : null
+  }
 
   const rows = []
   for (const [repo, r] of Object.entries(plan.repos ?? {})) {
@@ -81,9 +68,9 @@ export function entryEvidence(root, plan, catalog) {
           const ev = tier(f)
           if (!ev || row) continue
           const at = ownerOf(ev.path, repo)
-          const flagged = scannerOf(at.repo)(ev.quote, at.path).filter(x => x.severity !== 'warning')
-          if (flagged.length) {
-            withheld ??= { f, at, reason: [...new Set(flagged.map(x => findingKind(x.message)))].join(', ') }
+          const reason = flaggedIn(ev.quote, at)
+          if (reason) {
+            withheld ??= { f, path: ev.path, reason }
             continue
           }
           const line = lineOf(dirs[at.repo] ? showHead(dirs[at.repo], at.path) : null, ev.quote)
@@ -93,20 +80,23 @@ export function entryEvidence(root, plan, catalog) {
         }
         if (row) break
       }
-      if (!row) {
-        const f = facts.find(x => (x.evidence ?? []).some(e => typeof e.absence === 'string'))
-        const ev = f?.evidence.find(e => typeof e.absence === 'string')
-        if (ev) row = { ...head, fact: f.id, label: labelOf(f), claim: f.claim, absence: ev.absence, pathspec: ev.pathspec ?? '', more: facts.length - 1 }
+      for (const f of row ? [] : facts) {
+        for (const ev of (f.evidence ?? []).filter(e => typeof e.absence === 'string')) {
+          if (row) break
+          const reason = flaggedIn(ev.absence, ownerOf(ev.pathspec ?? '', repo))
+          if (reason) withheld ??= { f, path: ev.pathspec ?? '', reason }
+          else row = { ...head, fact: f.id, label: labelOf(f), claim: f.claim, absence: ev.absence, pathspec: ev.pathspec ?? '', more: facts.length - 1 }
+        }
       }
       if (!row && withheld) {
-        row = { ...head, fact: withheld.f.id, label: labelOf(withheld.f), claim: withheld.f.claim, path: withheld.at.path, withheld: withheld.reason, more: facts.length - 1 }
+        row = { ...head, fact: withheld.f.id, label: labelOf(withheld.f), claim: withheld.f.claim, path: withheld.path, withheld: withheld.reason, more: facts.length - 1 }
       }
       if (!row) row = { ...head, evidence: null }
       row.text = gateLine(row)
       rows.push(row)
     }
   }
-  return { rows, warnings }
+  return rows
 }
 
 // The line the P2 text shows for an entry, as the person reads it.
@@ -115,7 +105,7 @@ export function gateLine(row) {
   if (row.evidence === null) return `${lead}: no evidence`
   const more = row.more ? ` (+${row.more} more)` : ''
   if (row.absence !== undefined) return `${lead}: ${row.label} · no "${row.absence}" in ${row.pathspec || 'the repository'}${more}`
-  const where = row.line ? `${row.path}:${row.line}` : row.path
+  const where = row.line ? `${row.path}:${row.line}` : row.path || 'the repository'
   if (row.withheld) return `${lead}: ${row.label} · ${where} · quote withheld (${row.withheld})${more}`
   return `${lead}: ${row.label} · ${where} · "${row.quote}"${more}`
 }

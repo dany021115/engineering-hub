@@ -49,7 +49,13 @@ export default function verdicts(argv) {
       res.errors.push({ repo: name, id: String(v.id), message: `unknown verdict ${JSON.stringify(v.verdict)}` })
     }
   }
-  const merged = items.flatMap(i => (i.type === 'fact' && replaced.has(i.id) ? replaced.get(i.id) : [i]))
+  // EVI-1: the mark stays with the fact, since every repository numbers its facts from F1.
+  const supported = new Set(summary.supported)
+  const merged = items.flatMap(i => {
+    if (i.type !== 'fact') return [i]
+    if (replaced.has(i.id)) return replaced.get(i.id)
+    return [supported.has(i.id) ? { ...i, verified: true } : i]
+  })
   writeJsonl(file, merged)
   res.data = { repo: name, ...summary }
   res.lines.push(

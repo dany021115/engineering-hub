@@ -1,6 +1,6 @@
 // `impact` (IMP-1..5): before a change, what the generated docs and skills say about the files it
 // will touch, what to read first and what to run. It only reads; drift says what moved afterwards.
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
 import { generatorDir } from './catalog.mjs'
 import { parseOptions, result, usage } from './cli.mjs'
@@ -62,7 +62,7 @@ function fileItem(owner, dir, lock, path, entry, readable) {
   if (entry.type) item.type = entry.type
   if (entry.archetype) item.archetype = entry.archetype
   const file = join(dir, path)
-  if (!existsSync(file)) return item
+  if (item.state === 'missing') return item
   if ((lock.settings?.language ?? 'en') !== 'en') item.read = [path]
   else {
     const { names } = sectionsOf(readFileSync(file, 'utf8'))
@@ -78,14 +78,13 @@ export default function impact(argv) {
   let dir = topLevel(resolve(values.repo))
   const asked = resolve(values.repo)
   // From a workspace root, `<repo>/<path>` names a repo of the workspace.
-  if (!dir || (dir !== asked && isWorkspaceRoot(asked))) {
-    if (!isWorkspaceRoot(asked)) throw usage(`${values.repo} is not inside a git repository`)
-    const dirs = repoDirs(asked)
+  const dirs = isWorkspaceRoot(asked) ? repoDirs(asked) : {}
+  if (Object.keys(dirs).length) {
     const owners = [...new Set(given.map(p => p.split('/')[0]))]
     if (owners.length !== 1 || !dirs[owners[0]]) throw usage('from a workspace root, give paths as <repo>/<path>, all in one repository')
     dir = dirs[owners[0]]
     given = given.map(p => p.slice(owners[0].length + 1))
-  }
+  } else if (!dir) throw usage(`${values.repo} is not inside a git repository`)
   const lock = readLock(dir)
   if (!lock) throw usage(`${values.repo} has no .claude/hub.lock.json: run /hub:init first`)
   const repo = basename(dir)
@@ -116,26 +115,24 @@ export default function impact(argv) {
         if (cites) files.push(fileItem(r.name, r.dir, r.lock, p, entry, readable))
       }
     }
-    return { path, covered: files.length > 0, generated: Boolean(lock.files?.[path]), files }
+    return { path, covered: files.length > 0, generated: Object.hasOwn(lock.files ?? {}, path), files }
   })
 
   // What to run (IMP-4): the working-in skill's Verify like CI lines as written, else the CI files.
   const verify = []
   let verifyFrom = null
   const working = Object.entries(lock.files ?? {}).find(([, e]) => e.archetype === 'working-in')
-  const workingFile = working && join(dir, working[0])
-  if (working && existsSync(workingFile)) {
+  const state = working && entryState(dir, working[0], working[1])
+  const lines = state && !state.missing ? (sectionsOf(readFileSync(join(dir, working[0]), 'utf8')).body(VERIFY) ?? []) : []
+  if (lines.length) {
     verifyFrom = working[0]
-    const edited = entryState(dir, working[0], working[1]).edited
-    for (const line of sectionsOf(readFileSync(workingFile, 'utf8')).body(VERIFY) ?? []) {
-      verify.push(edited ? `${line} (edited by hand since it was generated)` : line)
-    }
+    for (const line of lines) verify.push(state.edited ? `${line} (edited by hand since it was generated)` : line)
   } else {
     verifyFrom = 'CI workflows'
     verify.push(...lsFiles(dir).filter(p => evidenceClass(p) === 'ci'))
   }
   if (reports.some(r => r.generated)) verify.push('hub.mjs check --lock .claude/hub.lock.json')
-  const notCovered = working ? 'not covered: run the full Verify like CI set' : 'not covered: run every CI workflow'
+  const notCovered = lines.length ? 'not covered: run the full Verify like CI set' : 'not covered: run every CI workflow'
   const owners = codeOwnersPath(lsFiles(dir))
 
   res.data = { repo, paths: reports, verify, verifyFrom, owners }

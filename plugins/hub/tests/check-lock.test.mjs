@@ -194,6 +194,27 @@ describe('a related repository that is not checked out is not checked (DRI-5)', 
     assert.match(errors, /the path ghost\/x\.ts does not exist/)
   })
 
+  test('only the name of the absent repository makes a line about it', () => {
+    const lines = ['Read `STALE_FOLDER` next to src/service/api.ts here.', 'The file service.ts held `STALE_FILE` once.', 'See https://service.example.com/api for `STALE_HOST`.', 'Do not call `service.staleCall` again.']
+    const text = webSkillText(`\n${lines.join('\n\n')}\n\nThe service reads \`STALE_NAMED\`.\n`)
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-mentions'), texts: { web: { [WEB_SKILL]: text } } })
+    const r = checkLock(cloneAlone(sb, w.web, 'web'))
+    assert.equal(r.code, 1, r.output)
+    const errors = messages(r).join('\n')
+    for (const id of ['STALE_FOLDER', 'STALE_FILE', 'STALE_HOST', 'service.staleCall']) assert.ok(errors.includes(`the identifier ${id} appears nowhere`), r.output)
+    assert.match(warningsOf(r), /the identifier STALE_NAMED may live in service/)
+  })
+
+  test('a repository on disk that the root does not hold is not absent', () => {
+    const text = webSkillText('\nThe service has no `service/src/nope.ts`.\n')
+    const w = lockedWorkspace(sb, { at: sb.path('dri5-parent'), texts: { web: { [WEB_SKILL]: text } } })
+    sb.write(join(w.w, '.git', 'HEAD'), 'ref: refs/heads/main\n')
+    const r = checkLock(w.web)
+    assert.equal(r.code, 1, r.output)
+    assert.match(messages(r).join('\n'), /the path service\/src\/nope\.ts does not exist/)
+    assert.doesNotMatch(warningsOf(r), notHere)
+  })
+
   test('identifiers by line', () => {
     const text = webSkillText('\nThe client sends `NOT_IN_ANY_REPO` on every call.\n\nThe service reads `NOT_IN_ANY_REPO` in `service/src/app.ts`.\n')
     const w = lockedWorkspace(sb, { at: sb.path('dri5-ids'), texts: { web: { [WEB_SKILL]: text } } })

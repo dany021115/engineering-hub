@@ -23,7 +23,14 @@ export function gitAvailable() {
 }
 
 export function topLevel(cwd) {
-  const r = git(cwd, ['rev-parse', '--show-toplevel'], { allowFail: true })
+  // A folder git cannot enter, or a file with that name, is not a repository.
+  let r
+  try {
+    r = git(cwd, ['rev-parse', '--show-toplevel'], { allowFail: true })
+  } catch (err) {
+    if (err instanceof HubError) throw err
+    return null
+  }
   return r.status === 0 ? r.stdout.trim() : null
 }
 
@@ -72,7 +79,7 @@ export function hashObject(dir, file, { write = false } = {}) {
 }
 
 export function statusZ(dir) {
-  return git(dir, ['status', '--porcelain=v1', '-z', '--untracked-files=all'], { raw: true }).stdout
+  return git(dir, ['--no-optional-locks', 'status', '--porcelain=v1', '-z', '--untracked-files=all'], { raw: true }).stdout
 }
 
 export function remoteUrl(dir, name = 'origin') {

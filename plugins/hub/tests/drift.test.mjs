@@ -250,3 +250,38 @@ test('a rename counts as its old path in --since (DRI-4)', () => {
   assert.equal(r.code, 0, r.output)
   assert.ok(r.json().repos[0].since.some(s => s.path === P1 && s.sources.includes('src/config.ts')), r.output)
 })
+
+describe('a related repository in any state (DRI-1, DRI-3)', () => {
+  const withInfra = w => {
+    const file = join(w.service, '.claude', 'hub.lock.json')
+    const lock = JSON.parse(readFileSync(file, 'utf8'))
+    sb.write(file, JSON.stringify({ ...lock, workspace: { repos: ['service', 'web', 'infra'] } }, null, 2) + '\n')
+  }
+
+  test('a repository only workspace.repos names is warned about', () => {
+    const w = lockedWorkspace(sb, { at: sb.path(`dri3-${++n}`) })
+    withInfra(w)
+    const r = drift(w.service, '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.match(JSON.stringify(r.json().warnings), /infra is not next to this repository, so its generated files were not checked/)
+    assert.match(drift(w.service, '--annotate').stdout, /^::notice::hub: infra is not checked out next to this repository; its generated files were not checked$/m)
+  })
+
+  test('a file with the name of a related repository counts as absent', () => {
+    const w = lockedWorkspace(sb, { at: sb.path(`dri3-${++n}`) })
+    withInfra(w)
+    sb.write(join(w.w, 'infra'), 'not a repository\n')
+    const r = drift(w.service, '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.match(JSON.stringify(r.json().warnings), /infra is not next to this repository/)
+  })
+
+  test('a generated file that is now a folder counts as missing', () => {
+    const w = lockedWorkspace(sb, { at: sb.path(`dri1-${++n}`) })
+    rmSync(join(w.service, 'docs/reference/configuration.md'))
+    sb.write(join(w.service, 'docs/reference/configuration.md', 'x.md'), 'x\n')
+    const r = drift(w.service, '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.equal(r.json().repos[0].files.find(f => f.path === P1).missing, true)
+  })
+})

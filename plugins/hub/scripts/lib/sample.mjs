@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { generatorDir, loadCatalog } from './catalog.mjs'
 import { HubError, parseOptions, result, usage } from './cli.mjs'
 import { git, lsFiles } from './git.mjs'
-import { classify, codeSpans, HEADING, isPathLike, SENTENCE, splitFrontmatter } from './markdown.mjs'
+import { classify, codeSpans, HEADING, SENTENCE, splitFrontmatter } from './markdown.mjs'
 import { stagingFile } from './paths.mjs'
 import { factIndex, loadPlanFile } from './plan.mjs'
 import { repoDirs } from './workspace.mjs'
@@ -85,7 +85,12 @@ export default function sample(argv) {
     const dir = dirs[repo]
     const entries = new Map((plan.repos?.[repo]?.files ?? []).map(f => [f.path, f]))
     const index = factIndex(root, repo)
-    const tracked = dir ? new Set(lsFiles(dir)) : new Set()
+    // What the sentence can point at: the repo's files and what this run just placed.
+    const known = new Set([...(dir ? lsFiles(dir) : []), ...Object.keys(r.files ?? {})])
+    const inRepo = span => {
+      const p = span.replace(/\/$/, '')
+      return known.has(p) || [...known].some(t => t.startsWith(`${p}/`))
+    }
     for (const [path, p] of Object.entries(r.files ?? {})) {
       if (!['create', 'update'].includes(p.action) || !p.placed || !/\.md$/i.test(path)) continue
       const staged = stagingFile(root, repo, path)
@@ -108,7 +113,7 @@ export default function sample(argv) {
       ]
       sentences(text, only).forEach((s, i) => {
         if (isFixed(s.text)) return
-        const named = codeSpans(s.text).filter(span => isPathLike(span) && (tracked.has(span) || [...tracked].some(t => t.startsWith(span.endsWith('/') ? span : `${span}/`))))
+        const named = codeSpans(s.text).filter(inRepo)
         units.push({ repo, path, line: s.line, text: s.text, open: named.length ? [...new Set(named)] : factPaths, key: sha1(`${seed}\n${repo}\n${path}\n${s.line}\n${i}`) })
       })
     }

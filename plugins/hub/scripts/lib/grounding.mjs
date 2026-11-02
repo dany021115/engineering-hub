@@ -44,7 +44,8 @@ export function ground(text, { catalog, paths, exists, repos, names = [], absent
   const out = []
   const err = (message, n) => out.push({ gate: 'grounding', message: `line ${n}: ${message}` })
   const warn = (message, n) => out.push({ gate: 'grounding', severity: 'warning', message: `line ${n}: ${message}` })
-  const mentions = (name, text) => new RegExp(`(^|[^A-Za-z0-9._-])${name.replace(/[.]/g, '\\.')}([^A-Za-z0-9_-]|$)`).test(text)
+  // The repo's name, or the start of a path in it; never a folder of another path, a file or a host.
+  const mentions = (name, text) => new RegExp(`(^|[^A-Za-z0-9._/-])${name.replace(/[.]/g, '\\.')}(?![A-Za-z0-9_-])(?!\\.[A-Za-z0-9_])`).test(text)
   const awayIn = span => {
     const [first, ...rest] = span.split('/')
     return rest.length && absent.includes(first) ? first : null
