@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { overlayText, pageText } from './gate-fixture.mjs'
@@ -154,5 +154,66 @@ describe('what route warns about (RUT-6)', () => {
     const alone = cloneAlone(sb, w.web, 'web')
     assert.equal(route(alone).code, 0)
     assert.match(warnsOf(alone), /service is not next to this repository, so its pages were not listed/)
+  })
+})
+
+describe('what verify found (RUT-2, RUT-3, RUT-4, RUT-5, RUT-6)', () => {
+  test('a stop comes once, whatever the form of its path', () => {
+    const w = ws()
+    addPages(w, 'service', { [INDEX]: { text: indexText(`- \`src/\` and \`src\` and \`./src/\` are one folder.\n- \`${SERVICE_SKILL}\` is the skill.`), type: 'overview' } })
+    const stops = stopsOf(w.service)
+    assert.equal(stops.filter(s => s.path.replace(/\/$/, '') === 'src').length, 1, JSON.stringify(stops))
+    assert.ok(!stops.some(s => s.path.startsWith('./')), JSON.stringify(stops))
+    assert.equal(stops.filter(s => s.path === SERVICE_SKILL).length, 1)
+  })
+
+  test('a link to a file of the repository is a file stop, and one deleted from the tree is none', () => {
+    const w = ws()
+    addPages(w, 'service', { [INDEX]: { text: indexText('- [`src/config.ts`](../src/config.ts) holds it.\n- `src/app.ts` starts it.\n- [Section](reference/configuration.md#settings) lists it.'), type: 'overview' } })
+    rmSync(join(w.service, 'src/app.ts'))
+    assert.deepEqual(stopsOf(w.service).filter(s => s.stage === 'start').map(s => s.path), [INDEX, 'src/config.ts', CONFIG])
+  })
+
+  test('sources in a repository that is not here are not checked', () => {
+    const alone = cloneAlone(sb, ws().service, 'service')
+    assert.equal(stopsOf(alone).find(s => s.path === INTERFACES).freshness, 'sources not checked')
+  })
+
+  test('an area keeps its path limit, and . is the whole repository', () => {
+    const w = ws()
+    addPages(w, 'service', { [INDEX]: { text: indexText('- `src/` holds the code.'), type: 'overview' } })
+    const all = stopsOf(w.service).map(s => s.path)
+    for (const area of ['.', './']) assert.deepEqual(stopsOf(w.service, '--area', area).map(s => s.path), all, area)
+    assert.deepEqual(stopsOf(w.service, '--area', 'srcfoo'), [])
+    assert.ok(stopsOf(w.service, '--area', 'src/config.ts').some(s => s.path === 'src/'))
+  })
+
+  test('a folder that holds the area keeps its page, and keys of other repositories do not count', () => {
+    const w = ws()
+    addPages(w, 'service', { 'docs/explain/a.md': { text: pageText('A', [['## How it works', 'It works.']], 'This page explains it.'), type: 'explanation', sources: { 'deploy/': 'x', 'web:src/': 'y' } } })
+    assert.ok(stopsOf(w.service, '--area', 'deploy/app.yaml').some(s => s.path === 'docs/explain/a.md'))
+    assert.ok(!stopsOf(w.service, '--area', 'src/client.ts').some(s => s.path === 'docs/explain/a.md'))
+  })
+
+  test('a finished run is no warning, and a broken lock next door is one, with exit 0', () => {
+    const w = ws()
+    sb.write(join(w.w, '.hub-run', 'plan.json'), '{}\n')
+    sb.write(join(w.w, '.hub-run', 'done.json'), '{}\n')
+    assert.doesNotMatch(warnsOf(w.service), /a run is not finished/)
+    sb.write(join(w.service, '.claude', 'hub.lock.json'), '{ broken')
+    assert.equal(route(w.web).code, 0)
+    assert.match(warnsOf(w.web), /not valid JSON/)
+  })
+
+  test('an index or a skill that is gone or a folder does not stop the route', () => {
+    const w = ws()
+    addPages(w, 'service', { [INDEX]: { text: indexText('- `src/app.ts` starts it.'), type: 'overview' } })
+    rmSync(join(w.service, INDEX))
+    sb.write(join(w.service, INDEX, 'x.md'), 'x\n')
+    rmSync(join(w.service, SERVICE_SKILL))
+    const r = route(w.service, '--json')
+    assert.equal(r.code, 0, r.output)
+    assert.equal(r.json().stops.find(s => s.path === INDEX).freshness, 'missing')
+    assert.match(warnsOf(w.service), /no page or skill says how to run/)
   })
 })

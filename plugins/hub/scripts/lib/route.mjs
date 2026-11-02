@@ -30,10 +30,14 @@ export function lockedRepo(value) {
   return { dir, lock, repo: basename(dir) }
 }
 
+// An area as a path of the repo: `.` and `./` are the whole repo.
+export const areaOf = value => posix.normalize(value).replace(/\/+$/, '') || '.'
+
 // Whether a source key falls under an area: the key is the area, is inside it, or is a folder
-// that holds it. Keys of other repos never do.
+// that holds it. Keys of other repos never do. The whole repo holds everything.
 export function underArea(keys, area) {
-  const a = area.replace(/^\.\//, '').replace(/\/+$/, '')
+  const a = areaOf(area)
+  if (a === '.') return true
   return keys.some(k => !SIBLING.test(k) && (k === a || k.startsWith(`${a}/`) || (k.endsWith('/') && a.startsWith(k))))
 }
 
@@ -74,8 +78,12 @@ function startItems(lines, index, isPage, inRepo) {
         if (/^[a-z][a-z0-9+.-]*:|^\/|^#/i.test(m[1])) continue
         const path = posix.normalize(posix.join(posix.dirname(index), m[1].split('#')[0]))
         if (isPage(path)) out.push({ kind: 'page', path })
-      } else if (isPage(m[2])) out.push({ kind: 'page', path: m[2] })
-      else if (inRepo(m[2])) out.push({ kind: 'file', path: m[2] })
+        else if (inRepo(path)) out.push({ kind: 'file', path })
+      } else {
+        const path = posix.normalize(m[2])
+        if (isPage(path)) out.push({ kind: 'page', path })
+        else if (inRepo(path)) out.push({ kind: 'file', path })
+      }
     }
   }
   return out
@@ -93,7 +101,7 @@ export default function route(argv) {
   const tracked = lsFiles(dir)
   const inRepo = span => {
     const p = span.replace(/\/$/, '')
-    return tracked.includes(p) || tracked.some(t => t.startsWith(`${p}/`))
+    return existsSync(join(dir, p)) && (tracked.includes(p) || tracked.some(t => t.startsWith(`${p}/`)))
   }
 
   const stops = []
@@ -111,7 +119,10 @@ export default function route(argv) {
     const working = Object.entries(files).find(([, e]) => e.archetype === 'working-in')
     const state = working && freshnessOf(dir, working[0], working[1])
     const verify = state && state.freshness !== 'missing' ? (sectionsOf(readFileSync(join(dir, working[0]), 'utf8')).body(VERIFY) ?? []) : []
-    if (verify.length) stops.push({ stage: 'run', kind: 'skill', repo, path: working[0], verify, ...state })
+    if (verify.length) {
+      used.add(working[0])
+      stops.push({ stage: 'run', kind: 'skill', repo, path: working[0], verify, ...state })
+    }
     else res.warnings.push({ repo, message: 'no page or skill says how to run this repository' })
   }
 
@@ -122,8 +133,8 @@ export default function route(argv) {
   if (!named) res.warnings.push({ repo, message: `no "${START}" section, so the pages are ordered by type` })
   for (const item of startItems(named ?? [], index, isPage, inRepo)) {
     if (item.kind === 'page') addPage('start', item.path)
-    else if (!used.has(item.path)) {
-      used.add(item.path)
+    else if (!used.has(item.path.replace(/\/$/, ''))) {
+      used.add(item.path.replace(/\/$/, ''))
       stops.push({ stage: 'start', kind: 'file', repo, path: item.path })
     }
   }
@@ -159,9 +170,10 @@ export default function route(argv) {
 
   let kept = stops
   if (values.area !== undefined) {
-    const area = values.area.replace(/^\.\//, '').replace(/\/+$/, '')
+    const area = areaOf(values.area)
     kept = stops.filter(s => {
-      if (s.kind === 'file') return s.path.replace(/\/$/, '') === area || s.path.startsWith(`${area}/`) || area.startsWith(s.path)
+      const file = s.path.replace(/\/$/, '')
+      if (s.kind === 'file') return area === '.' || file === area || file.startsWith(`${area}/`) || area.startsWith(`${file}/`)
       return underArea(keysOf.get(s) ?? Object.keys(files[s.path]?.sources ?? {}), area)
     })
     if (!kept.length) res.warnings.push({ repo, message: `no stop under ${values.area}` })

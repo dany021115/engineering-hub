@@ -13,7 +13,13 @@ import { fixedSentences, sentences } from './sample.mjs'
 const REASONS = { 'edited by hand': 'edited', missing: 'missing', 'sources changed': 'sources changed', 'sources not checked': 'sources not checked' }
 const MIN_WORDS = 5
 const CELL = /^`([^`]+)`$/
-const plain = text => text.replace(/\[([^\]]*)\]\([^)]*\)/g, '$1').replace(/\*\*/g, '')
+// A sentence as it reads, with links reduced to their text and no bold; code spans stay as written.
+const plain = text =>
+  text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .split(/(`[^`]*`)/)
+    .map(part => (part.startsWith('`') ? part : part.replace(/\*\*/g, '')))
+    .join('')
 
 // A sentence with one checked span, blanked; null when it would make a poor question.
 function clozeOf(sentence, allowed) {
@@ -22,7 +28,7 @@ function clozeOf(sentence, allowed) {
   if (spans.length !== 1 || !checkedSpan(spans[0]) || allowed.includes(spans[0])) return null
   const written = `\`${spans[0]}\``
   const rest = text.replace(written, ' ')
-  if (text.startsWith(`${written},`) || rest.includes(spans[0]) || rest.trim().split(/\s+/).length < MIN_WORDS) return null
+  if (text.startsWith(`${written},`) || rest.includes(spans[0]) || rest.split(/\s+/).filter(w => /[\p{L}\p{N}]/u.test(w)).length < MIN_WORDS) return null
   return { kind: 'cloze', text: text.replace(written, '____'), answer: spans[0] }
 }
 
@@ -38,7 +44,7 @@ function whereOf(lines, known) {
     else if (inTable) {
       const name = CELL.exec(cells[0] ?? '')?.[1]
       const file = CELL.exec(cells[1] ?? '')?.[1]
-      if (name && file && checkedSpan(name) && (isPathLike(file) || known.has(file))) {
+      if (name && file && name !== file && checkedSpan(name) && (known.has(file) || checkedSpan(file) && isPathLike(file))) {
         out.push({ line: l.n, kind: 'where', text: `Which file reads \`${name}\`?`, answer: file })
       }
     }
@@ -82,7 +88,12 @@ export default function quiz(argv) {
     }
   }
 
-  const chosen = [...found.values()].sort((a, b) => a.key.localeCompare(b.key)).slice(0, n)
+  // QUI-6: no question gives away the answer of another.
+  const chosen = []
+  for (const q of [...found.values()].sort((a, b) => a.key.localeCompare(b.key))) {
+    if (chosen.length === n) break
+    if (!chosen.some(c => c.text.includes(q.answer) || q.text.includes(c.answer))) chosen.push(q)
+  }
   const questions = chosen.map(({ key: _key, answer, page, section, ...q }, i) => ({ n: i + 1, ...q, ...(values.answers ? { answer, page, section } : {}) }))
   const res = result()
   res.data = { repo, seed, questions, skipped }

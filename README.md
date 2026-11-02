@@ -40,7 +40,7 @@ When the code changes, run `/hub:refresh` (or `/hub:refresh <repo> …`). It run
 
 For a docs site, run `/hub:site` (or `/hub:site <repo>` in a workspace). It installs a Docusaurus site in `docs-site/` of one repository, built from that repository's docs folder: it checks first that the docs folder has an index and that no other site is there, stages the site, asks before placing it, warns about the download (`npm ci` fetches about 300 MB, and `node_modules` takes about 500 MB), builds it with every broken link or diagram named by file and line, and registers its files in the lock. Preview it with `npm --prefix docs-site start`. With a GitHub remote it can add `.github/workflows/docs-site.yml`, which builds the site on pull requests, on pushes to the default branch and when run by hand; deploying to GitHub Pages stays off until you set Pages to "GitHub Actions" and run `gh variable set DOCS_DEPLOY --body pages`, and then only a push to the default branch deploys. A Pages site is public unless your organization has private Pages (GitHub Enterprise Cloud). Once the site exists, `/hub:init` and `/hub:refresh` rebuild it after placing their pages.
 
-To learn a repository that has generated docs, run `/hub:learn` (or `/hub:learn <repo> <area>`). It walks you along a route the script computes: how to run it, what the index says to read first, one first change, the concepts, and last the pages of other repositories that cite this one. You open the files, predict what they do, explain them and run the commands yourself with `!`; Claude gives hints, checks you against the pages and the code, and gives the answer only when you ask. Each stop says whether its sources changed since the page was written. It ends with two questions and a list of what to ask a person. It writes nothing, and its checks on what Claude says are instructions, not gates.
+To learn a repository that has generated docs, run `/hub:learn` (or `/hub:learn <repo> <area>`). It walks you along a route the script computes: how to run it, what the index says to read first, one first change, the concepts, the other pages, and last the pages of other repositories that cite this one. You open the files, predict what they do, explain them and run the commands yourself with `!`; Claude gives hints, checks you against the pages and the code, and gives the answer only when you ask. Each page says whether its sources changed since it was written. It ends with up to two questions and a list of what to ask a person. It writes nothing, and its checks on what Claude says are instructions, not gates.
 
 ### Adding values to the site by hand
 
@@ -82,7 +82,7 @@ To map a change before making it, run `node <hub plugin>/scripts/hub.mjs impact 
 
 To see the route of `/hub:learn` without a session, run `node <hub plugin>/scripts/hub.mjs route --repo .`, optionally with `--area <path>`. It only reads.
 
-To test what you remember, without Claude, run `node <hub plugin>/scripts/hub.mjs quiz --repo . --seed 7`. It asks up to 8 questions from the generated pages that are neither edited nor out of date: sentences with a path or an identifier blanked, and which file reads a name in a reference table. It only reads, it stores nothing, and a small repository gives few questions or none. The same seed gives the same questions, and `--answers` adds each answer with its page and section.
+To test what you remember, without Claude, run `node <hub plugin>/scripts/hub.mjs quiz --repo . --seed 7`. It asks up to 8 questions from the generated pages that are neither edited nor out of date: sentences with a path or an identifier blanked, and which file reads a name in a reference table. It only reads, it stores nothing, and a small repository gives few questions or none. No question gives away the answer of another. The same seed gives the same questions, and `--answers` adds each answer with its page and section.
 
 `<hub plugin>` is the `plugins/hub` folder of this template. To run the script from a terminal, clone the template at the `hub--v<version>` tag, `<version>` being the lock's `generator` without `hub@`, as `hub-check.yml` does: `git clone --depth 1 --branch hub--v<version> <template URL>`. Or ask Claude, in a session where `hub` is loaded, for the exact command.
 
@@ -167,7 +167,7 @@ The third gate's spot check is a small measure of how often the generated senten
 
 What people feel they learned is a poor measure, so test it, in a throwaway copy of the repository and without Claude. Compare each person with themselves, since a few people cannot show more:
 
-1. **Before:** they estimate their score, then take `hub.mjs quiz --repo . --seed 1`.
+1. **Before:** they estimate their score, then take `hub.mjs quiz --repo . --seed 1`, and score it with the same command and `--answers`.
 2. **The task:** they do a first task in one area with `/hub:learn`, and in another area of similar size by asking Claude for an overview. Alternate which area gets which between people.
 3. **Later:** two to seven days on, they take `hub.mjs quiz --repo . --seed 2 --area <area>` for each area, without Claude, and compare.
 
