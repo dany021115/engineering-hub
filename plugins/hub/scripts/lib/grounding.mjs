@@ -5,7 +5,7 @@ import { classify, codeSpans, fences, isPathLike, isPlaceholder, splitFrontmatte
 const SHELL = new Set(['sh', 'bash', 'shell', 'zsh', 'console', 'shell-session'])
 // `_` or an inner capital: CACHE_KEY, dbUrl, process.env.DB_URL; not plain words.
 const IDENTIFIER = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/
-const looksLikeIdentifier = s => IDENTIFIER.test(s) && (s.includes('_') || /[a-z0-9][A-Z]/.test(s))
+export const looksLikeIdentifier = s => IDENTIFIER.test(s) && (s.includes('_') || /[a-z0-9][A-Z]/.test(s))
 
 function notDocs(docsDir) {
   const specs = [':(exclude,glob)**/*.md', ':(exclude,glob)**/*.mdx']

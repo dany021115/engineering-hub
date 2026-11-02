@@ -18,7 +18,8 @@
     "descriptionWithWhenToUseMaxChars": 1536,
     "skillBodyMaxLines": 500,
     "gateQuoteChars": 120,
-    "spotSentences": 5
+    "spotSentences": 5,
+    "quizQuestions": 8
   },
   "skills": {
     "working-in": {

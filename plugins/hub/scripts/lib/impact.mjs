@@ -28,7 +28,7 @@ export function readFirstHeadings() {
 }
 
 // The level-2 headings of a generated file, and the lines of one section.
-function sectionsOf(text) {
+export function sectionsOf(text) {
   const fm = splitFrontmatter(text)
   const lines = classify(fm.body, fm.offset)
   const all = text.split('\n')
